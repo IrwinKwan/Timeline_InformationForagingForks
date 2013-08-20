@@ -1,5 +1,50 @@
 #!/usr/bin/env python
 
+"""This script takes input data from a coded spreadsheet with
+foraging information in it and a processed Fluorite log with
+Eclipse commands in it and then creates a visual timeline
+of the participant's actions.
+
+Inputs:
+
+Place in the data directory:
+
+- A codes file in tab-separated format, usually
+copy-pastable from Excel, ex: p03-coded.tab
+
+- A commands file in tab-separated format, usually
+copy-pastable from Excel, ex: p03-commands.tab
+
+Output:
+
+- An SVG file of the timeline, ex: p03.svg
+
+===
+
+Copyright (c) 2013, Iriwn Kwan All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer. Redistributions in binary
+form must reproduce the above copyright notice, this list of conditions and
+the following disclaimer in the documentation and/or other materials provided
+with the distribution. Neither the name of the <ORGANIZATION> nor the names of
+its contributors may be used to endorse or promote products derived from this
+software without specific prior written permission. THIS SOFTWARE IS PROVIDED
+BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."""
+
+import sys
 import os
 from datetime import time, datetime, date, timedelta
 from collections import OrderedDict
@@ -8,9 +53,9 @@ from math import ceil
 import svgwrite
 import re
 
-class ConvertVideoTime:
+class VideoTime:
 	@staticmethod
-	def convert(video_time_stamp):
+	def convert_to_timestamp(video_time_stamp):
 		(minute, s) = video_time_stamp.split(':')
 		(second, millisecond) = s.split('.')
 
@@ -22,19 +67,26 @@ class Command:
 	def __init__(self, line):
 
 		fields = ['Participant',
-			'Command ID',
+			'CommandID',
 			'Time',
-			'Forks',
-			'Source File Last Opened',
 			'Command',
 			'ActiveFile',
 			'ASTMethod',
-			'docOffset',
+			'EclipseSpecial',
+			'Find',
+			'Replace',
+			'DocOffset',
 			'LineOfCode']
-		line_data = line.rstrip('\n').split('\t', len(fields) - 1) # Modify this to parse for double quotes before splitting
-		line_data[9] = line_data[9].rstrip('"').lstrip('"')
-		line_data[2] = ConvertVideoTime.convert(line_data[2])
+		line_data = line.rstrip('\n').split('\t', len(fields))
 		self.record = OrderedDict(zip(fields, line_data))
+
+		self.record['CommandID'] = int(self.record['CommandID'])
+		self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
+		self.record['DocOffset'] = int(self.record['DocOffset'])
+		self.record['LineOfCode'] = self._strip_quotes(self.record['LineOfCode'])
+
+	def _strip_quotes(self, field):
+		return field.rstrip('"').lstrip('"')
 
 	def __len__(self):
 		return len(self.record)
@@ -49,23 +101,57 @@ class Command:
 		return ('\t'.join(str(v) for v in self.record.values()))
 
 
+class CodeError(Exception):
+	pass
+
+
 class CodedEvent:
 	def __init__(self, line):
 		fields = ['Index',
 			'Time',
+			'Transcription',
 			'Foraging',
-			'Fork',
+			'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
+			'Forks',
 			'LearningDoing',
-			'Fork Goal Start/End', # Probably will be unused
-			'Fork during foraging'] # Probably will be unused
+			'Fork matches goal', 'Fork during foraging',
+			'Retrospective fork',
+			'Retrospective quote']
 		line_data = line.split('\t')
+
 		self.record = None
 		if self._is_coded_row(line_data):
 			self.valid = True
-			line_data[1] = ConvertVideoTime.convert(line_data[1])
+
+			
 			self.record = OrderedDict(zip(fields, line_data))
+			self._remove_unused_keys()
+
+			self.record['Index'] = int(self.record['Index'])
+			self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
+			self.record['Forks'] = int(self.record['Forks'])
+			self.record['Foraging'] = self._convert_yesno_to_boolean(self.record, 'Foraging')
+
+			self.record['LearningDoing'] = self.record['LearningDoing'].upper()
+
 		else:
+			self.record = None
 			self.valid = False
+
+	def _remove_unused_keys(self):
+		keys_to_delete = ['Transcription', 'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
+			'Fork matches goal', 'Fork during foraging', 'Retrospective quote']
+		for k in keys_to_delete:
+			self.record.pop(k, None)
+
+	def _convert_yesno_to_boolean(self, record, key):
+		if record[key].lower() == 'y' or record[key] == '1':
+			return True
+		elif record[key] == '' or record[key].lower() == 'n' or record[key] == '0':
+			return False
+		else:
+			raise CodeError("There's a problem with coding %s not being Y or N for index %s at %s."
+				% (key, record['Index'], str(record['Time'])))
 
 	def _is_coded_row(self, line_data):
 		if not line_data[0] or not line_data[1]:
@@ -124,7 +210,8 @@ class TimelineDecorations:
 
 			tickmark = self.svg_timeline.line(
 				start=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET), \
-				end=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET + Timeline.HEIGHT)) \
+				end=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET + Timeline.HEIGHT),
+				opacity="0.5") \
 				.stroke(color='black', width=1)
 
 			if alternate % 2:
@@ -158,11 +245,16 @@ class TimelineDecorations:
 
 		startpos = Timeline.X_OFFSET - 2
 
-		legend.add(svgwrite.text.TSpan("Open", insert=None, x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Select", insert=None, x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Move", insert=None, x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Run", insert=None, x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Misc", insert=None, x=[startpos], dy=[10]))
+		legend.add(svgwrite.text.TSpan("Open", insert=None, fill=EventLine.COLOR_OPEN,
+			x=[startpos], dy=[10]))
+		legend.add(svgwrite.text.TSpan("Select", insert=None, fill=EventLine.COLOR_SELECT,
+			x=[startpos], dy=[10]))
+		legend.add(svgwrite.text.TSpan("Move", insert=None, fill=EventLine.COLOR_MOVE,
+			x=[startpos], dy=[10]))
+		legend.add(svgwrite.text.TSpan("Run", insert=None, fill=EventLine.COLOR_RUN,
+			x=[startpos], dy=[10]))
+		legend.add(svgwrite.text.TSpan("Misc", insert=None, fill=EventLine.COLOR_DEFAULT,
+			x=[startpos], dy=[10]))
 
 		self.svg_timeline.add(legend)
 
@@ -172,12 +264,43 @@ class Square:
 
 		self.svg_timeline = svg_timeline
 		self.foraging = event['Foraging']
+		self.retrospective = event['Retrospective fork']
 
-		if event['LearningDoing'] and not event['Foraging']:
-			raise Exception('Coded Data error: learning/doing coded but the fork is not.')
+		if event['LearningDoing'] and not event['Forks']:
+			raise CodeError('Coded Data error: learning/doing coded but the fork is not.')
 
-		self.fork = event['Fork']
+		self.fork = event['Forks']
 		self.learning_or_doing = event['LearningDoing']
+
+	def _draw_text(self, xpos):
+		size = "14"
+
+		if self.retrospective.lower() == 'y':
+			style = self.svg_timeline.g(style='text-decoration:underline; font-weight:bold')
+		elif self.retrospective.lower() == 'n':
+			style = self.svg_timeline.g(style='font-style:italics')
+		else:
+			style = None
+
+		if not self.learning_or_doing and self.retrospective.lower() == 'y':
+			self.learning_or_doing = 'f+'
+			style = None
+		elif not self.learning_or_doing and self.retrospective.lower() == 'n':
+			self.learning_or_doing = 'f-'
+			style = None
+
+		text = self.svg_timeline.text(
+			self.learning_or_doing,
+			insert=(xpos + Timeline.SQUARE_WIDTH/2 + Timeline.X_OFFSET, Timeline.CHART_HEIGHT/2 + Timeline.Y_OFFSET),
+			font_family="sans-serif",
+			font_size=size,
+			text_anchor="middle",
+			dy="5")
+		if style:
+			style.add(text)
+			self.svg_timeline.add(style)
+		else:
+			self.svg_timeline.add(text)
 
 	def draw(self, xpos):
 		"""Draws the square according to its properties"""
@@ -193,13 +316,9 @@ class Square:
 			opacity="0.8",
 			stroke_width="0"))
 
-		self.svg_timeline.add(self.svg_timeline.text(
-			self.learning_or_doing,
-			insert=(xpos + Timeline.SQUARE_WIDTH/2 + Timeline.X_OFFSET, Timeline.CHART_HEIGHT/2 + Timeline.Y_OFFSET),
-			font_family="sans-serif",
-			font_size="14",
-			text_anchor="middle",
-			dy="5"))
+		self._draw_text(xpos)
+
+
 
 class CommandTooSoonException(Exception):
 	pass
@@ -208,30 +327,36 @@ class EventLine:
 
 	HEIGHT = 10
 
+	COLOR_OPEN = 'chocolate'
+	COLOR_SELECT = 'darkviolet'
+	COLOR_MOVE = 'red'
+	COLOR_RUN = 'blue'
+	COLOR_DEFAULT = 'darkgreen'
+
 	def __init__(self, svg_timeline, event, start):
 		self.svg_timeline = svg_timeline
 		self.event = event
 		self.start_time = start
 
 	def _draw_open(self, xpos):
-		self._draw('orangered', 0, xpos)
+		self._draw(EventLine.COLOR_OPEN, 0, xpos)
 
 	def _draw_select(self, xpos):
-		self._draw('darkviolet', 10, xpos)
+		self._draw(EventLine.COLOR_SELECT, 10, xpos)
 
 	def _draw_move(self, xpos):
-		self._draw('red', 20, xpos)
+		self._draw(EventLine.COLOR_MOVE, 20, xpos)
 
 	def _draw_run(self, xpos):
-		self._draw('blue', 30, xpos)
+		self._draw(EventLine.COLOR_RUN, 30, xpos)
 
 	def _draw_default(self, xpos):
-		self._draw('darkgreen', 40, xpos)
+		self._draw(EventLine.COLOR_DEFAULT, 40, xpos)
 
 	def _draw(self, color, top, xpos):
 		self.svg_timeline.add(self.svg_timeline.line(
 				start=(xpos + Timeline.X_OFFSET, top + Timeline.Y_OFFSET),
-				end=(xpos + Timeline.X_OFFSET, top + EventLine.HEIGHT + Timeline.Y_OFFSET)).
+				end=(xpos + Timeline.X_OFFSET, Timeline.HEIGHT + Timeline.Y_OFFSET)).
 				stroke(color=color, width=1, opacity=0.9))
 
 	def draw(self):
@@ -302,6 +427,45 @@ class MethodBar:
 
 		return text_string
 
+	def _xstart(self):
+		return Timeline.calculate_x_position(self.timeline_start, self.start['Time'])
+
+	def _draw_text(self, x_start):
+		if not self.last_text:
+			return True
+			# print "NONE going to write %s at %d,%d" % (self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
+		elif (self.last_text + MethodBar.TEXT_WIDTH) < (x_start):
+			return True
+			# print "%d: going to write %s at %d,%d" % (self.last_text, self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
+		else:
+			return False
+
+	def _draw_bar(self, x_start):
+		"""Draws the elapsed time for visiting a method"""
+		duration = self.end['Time'] - self.start['Time']
+		self.svg_timeline.add(self.svg_timeline.rect(
+			insert=(x_start, Timeline.METHOD_LANE_HEIGHT * self.lane + Timeline.CHART_HEIGHT + Timeline.Y_OFFSET),
+			size=(duration.total_seconds(), Timeline.METHOD_LANE_HEIGHT),
+			fill=self.background,
+			opacity="0.3",
+			stroke_width="0"))
+
+	def _draw_method(self, x_start):
+		"""Draws the method text"""
+		textcolor = "midnightblue"
+		if self.my_name != 'None':
+			textcolor = "black"
+
+		self.last_text = x_start
+		self.svg_timeline.add(self.svg_timeline.text(
+			self.my_name,
+			insert=(x_start, 2 + Timeline.CHART_HEIGHT + Timeline.METHOD_LANE_HEIGHT * self.lane + Timeline.Y_OFFSET),
+			font_family="sans-serif",
+			font_size="8",
+			text_anchor="start",
+			fill=textcolor,
+			dy="5"))
+
 	def draw(self, end):
 		"""Draws the method's bar from start (stored in the instance) to the end parameter"""
 
@@ -309,39 +473,12 @@ class MethodBar:
 			raise MethodLaneException("Method Lane outside range %d and %d" % (1, Timeline.METHOD_LANES))
 
 		self.end = end
-		duration = self.end['Time'] - self.start['Time']
-		bar_x_start = Timeline.calculate_x_position(self.timeline_start, self.start['Time'])
 
-		textcolor = "midnightblue"
-		if self.my_name != 'None':
-			textcolor = "midnightblue"
+		x_start = self._xstart() + Timeline.X_OFFSET
 
-		self.svg_timeline.add(self.svg_timeline.rect(
-			insert=(bar_x_start + Timeline.X_OFFSET, Timeline.METHOD_LANE_HEIGHT * self.lane + Timeline.CHART_HEIGHT + Timeline.Y_OFFSET),
-			size=(duration.total_seconds(), Timeline.METHOD_LANE_HEIGHT),
-			fill=self.background,
-			opacity="0.3",
-			stroke_width="0"))
-
-		if not self.last_text:
-			write_text = True
-			# print "NONE going to write %s at %d,%d" % (self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
-		elif (self.last_text + MethodBar.TEXT_WIDTH) < (bar_x_start + Timeline.X_OFFSET):
-			write_text = True
-			# print "%d: going to write %s at %d,%d" % (self.last_text, self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
-		else:
-			write_text = False
-
-		if write_text:
-			self.last_text = bar_x_start + Timeline.X_OFFSET
-			self.svg_timeline.add(self.svg_timeline.text(
-				self.my_name,
-				insert=(bar_x_start + Timeline.X_OFFSET, 2 + Timeline.CHART_HEIGHT + Timeline.METHOD_LANE_HEIGHT * self.lane + Timeline.Y_OFFSET),
-				font_family="sans-serif",
-				font_size="8",
-				text_anchor="start",
-				fill=textcolor,
-				dy="5"))
+		self._draw_bar(x_start)
+		if self._draw_text(x_start):
+			self._draw_method(x_start)
 
 		self.visited_methods.update_last_text(self.my_name, self.last_text)
 		return self.visited_methods
@@ -463,8 +600,8 @@ class Timeline:
 
 	def draw(self):
 		"""Converts the textual commands_list to a graphical timeline view in SVG."""
-		self._draw_coded_events()
 		self._draw_command_events()
+		self._draw_coded_events()
 		self._draw_methods()
 		self._draw_timeline_decorations()
 
@@ -543,7 +680,7 @@ def data_codedevents(pid):
 
 if __name__ == "__main__":
 	# participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-	participants = [3]
+	participants = [2]
 
 	for p in participants:
 		t = Timeline(p, DataLoader.load_codedevents(data_codedevents(p)), DataLoader.load_commands(data_commands(p)))
