@@ -80,10 +80,13 @@ class Command:
 		line_data = line.rstrip('\n').split('\t', len(fields))
 		self.record = OrderedDict(zip(fields, line_data))
 
-		self.record['CommandID'] = int(self.record['CommandID'])
-		self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
-		self.record['DocOffset'] = int(self.record['DocOffset'])
-		self.record['LineOfCode'] = self._strip_quotes(self.record['LineOfCode'])
+		try:
+			self.record['CommandID'] = int(self.record['CommandID'])
+			self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
+			self.record['DocOffset'] = int(self.record['DocOffset'])
+			self.record['LineOfCode'] = self._strip_quotes(self.record['LineOfCode'])
+		except ValueError, e:
+			print "Exception at index %d: %s" % (self.record['CommandID'], str(e))
 
 	def _strip_quotes(self, field):
 		return field.rstrip('"').lstrip('"')
@@ -122,17 +125,26 @@ class CodedEvent:
 		self.record = None
 		if self._is_coded_row(line_data):
 			self.valid = True
-
 			
 			self.record = OrderedDict(zip(fields, line_data))
 			self._remove_unused_keys()
 
-			self.record['Index'] = int(self.record['Index'])
-			self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
-			self.record['Forks'] = int(self.record['Forks'])
-			self.record['Foraging'] = self._convert_yesno_to_boolean(self.record, 'Foraging')
+			try:
+				self.record['Index'] = int(self.record['Index'])
+				self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
 
-			self.record['LearningDoing'] = self.record['LearningDoing'].upper()
+				try:
+					self.record['Forks'] = int(self.record['Forks'])
+				except (KeyError, ValueError), e:
+					print "Exception at index %d, check if it's a missing fork? %s" % (self.record['Index'], str(e))
+					self.record['Forks'] = 0
+
+				self.record['Foraging'] = self._convert_yesno_to_boolean(self.record, 'Foraging')
+				self.record['LearningDoing'] = self.record['LearningDoing'].upper()
+			except (KeyError, IndexError), e:
+				print "Error at index %d: %s" % (self.record['Index'], str(e))
+				print self.record
+				
 
 		else:
 			self.record = None
@@ -264,7 +276,11 @@ class Square:
 
 		self.svg_timeline = svg_timeline
 		self.foraging = event['Foraging']
-		self.retrospective = event['Retrospective fork']
+
+		try:
+			self.retrospective = event['Retrospective fork']
+		except:
+			self.retrospective = ''
 
 		if event['LearningDoing'] and not event['Forks']:
 			raise CodeError('Coded Data error: learning/doing coded but the fork is not.')
@@ -515,7 +531,7 @@ class Timeline:
 		self.coded_events = codedevents_list
 		self.commands = commands_list
 		self.pid = pid
-		self.svg_timeline = svgwrite.Drawing(filename = str(pid) + ".svg", size=("2400px", "600px"))
+		self.svg_timeline = svgwrite.Drawing(filename = "%02d.svg" % pid, size=("2200px", "600px"))
 
 		self.start_time = self.coded_events[0]['Time']
 
@@ -679,9 +695,10 @@ def data_codedevents(pid):
 
 
 if __name__ == "__main__":
-	# participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-	participants = [2]
+	participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12] # P11 has incomplete commands data
+	# participants = [2]
 
 	for p in participants:
+		print "Participant %d" % p
 		t = Timeline(p, DataLoader.load_codedevents(data_codedevents(p)), DataLoader.load_commands(data_commands(p)))
 		t.draw()
