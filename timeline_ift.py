@@ -260,11 +260,11 @@ class MethodBar:
 		self.my_name = MethodBar.method_name(event_start)
 		self.timeline_start = timeline_start
 
+		self.visited_methods = visited_methods
 		method_decorations = visited_methods.get(self.my_name)
 		self.background = method_decorations['color']
 		self.lane = method_decorations['lane']
 		self.last_text = method_decorations['last_text']
-		self.textpos = None
 
 	def same_method(self, new_event):
 		"""Is the incoming method the same as the current method?"""
@@ -325,15 +325,15 @@ class MethodBar:
 
 		if not self.last_text:
 			write_text = True
-			print "NONE going to write %s at %d,%d" % (self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
+			# print "NONE going to write %s at %d,%d" % (self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
 		elif (self.last_text + MethodBar.TEXT_WIDTH) < (bar_x_start + Timeline.X_OFFSET):
 			write_text = True
-			print "%d: going to write %s at %d,%d" % (self.last_text, self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
+			# print "%d: going to write %s at %d,%d" % (self.last_text, self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
 		else:
 			write_text = False
 
 		if write_text:
-			self.textpos = bar_x_start + Timeline.X_OFFSET
+			self.last_text = bar_x_start + Timeline.X_OFFSET
 			self.svg_timeline.add(self.svg_timeline.text(
 				self.my_name,
 				insert=(bar_x_start + Timeline.X_OFFSET, 2 + Timeline.CHART_HEIGHT + Timeline.METHOD_LANE_HEIGHT * self.lane + Timeline.Y_OFFSET),
@@ -342,6 +342,9 @@ class MethodBar:
 				text_anchor="start",
 				fill=textcolor,
 				dy="5"))
+
+		self.visited_methods.update_last_text(self.my_name, self.last_text)
+		return self.visited_methods
 
 
 class Timeline:
@@ -359,7 +362,7 @@ class Timeline:
 	Y_OFFSET = 10
 
 	CHART_HEIGHT = 60
-	METHOD_LANES = 25
+	METHOD_LANES = 19
 	METHOD_LANE_HEIGHT = 10
 	METHOD_HEIGHT = METHOD_LANES * METHOD_LANE_HEIGHT
 
@@ -447,9 +450,9 @@ class Timeline:
 					start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
 
 				if previous and not start_event.same_method(previous):
-					start_event.draw(event)
-					self.visited_methods.update_last_text(start_event.my_name, start_event.textpos)
-					print "textpos: %s, %s" % (start_event.my_name, start_event.textpos)
+					self.visited_methods = start_event.draw(event)
+					#self.visited_methods.update_last_text(start_event.my_name, start_event.textpos)
+					#print "update textpos: %s, %s" % (start_event.my_name, start_event.textpos)
 					start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
 
 				previous = event
@@ -477,17 +480,23 @@ class VisitedMethods:
 
 	def __init__(self):
 		self.methods = {}
-		self.next = 0
+		self.next = 1
+		none_method = {'color': 'grey',
+			'lane': 0,
+			'last_text': None}
+		self.methods['None'] = none_method
 
 	def get(self, method_name):
 		if not method_name in self.methods:
-			print "creating new%s" % method_name
+			# print "creating new%s" % method_name
 			m = {}
 			m['color'] = VisitedMethods.COLORS[self.next % len(VisitedMethods.COLORS)]
-			m['lane'] = self.next % VisitedMethods.LANES
+			m['lane'] = self.next
 			m['last_text'] = None
 			self.methods[method_name] = m
-			self.next += 1
+			self.next = (self.next + 1) % VisitedMethods.LANES
+			if self.next == 0:
+				self.next += 1
 
 		return self.methods[method_name]
 
