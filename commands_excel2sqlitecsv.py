@@ -7,7 +7,7 @@ from events import DataLoader
 
 def export_sqlite_csv(p, events):
 	for ev in events:
-		print ev.tab()
+		print "%d\t%s" %(p, ev.tab())
 
 
 if __name__== "__main__":
