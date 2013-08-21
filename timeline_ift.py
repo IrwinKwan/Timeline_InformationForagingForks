@@ -56,9 +56,10 @@ import re
 from events import VideoTime, Command, CodedEvent, CodeError, DataLoader
 
 class TimelineDecorations:
-	def __init__(self, svg_timeline, coded_events):
+	def __init__(self, svg_timeline, coded_events, participant):
 		self.svg_timeline = svg_timeline
 		self.coded_events = coded_events
+		self.participant = participant
 
 	def draw(self):
 		self._draw_x_axis()
@@ -66,6 +67,7 @@ class TimelineDecorations:
 		self._draw_x_axis(Timeline.HEIGHT)
 		self._draw_x_tickmarks()
 		self._draw_x_labels()
+		self._draw_participant_label()
 
 	def _calculate_timeline_duration(self, events):
 		start = events[0]
@@ -115,6 +117,12 @@ class TimelineDecorations:
 				pass
 
 			ce_index += 2
+
+	def _draw_participant_label(self):
+		self.svg_timeline.add(self.svg_timeline.text("P%02d" % (self.participant),
+				insert=(0, Timeline.Y_OFFSET + Timeline.HEIGHT + 20),
+				font_family="sans-serif",
+				font_size="14"))
 
 	def draw_legend(self):
 		legend = self.svg_timeline.text("",
@@ -432,7 +440,7 @@ class Timeline:
 	"""
 	X_MARGIN = 10
 	X_OFFSET = 60
-	Y_OFFSET = 10
+	Y_OFFSET = 6
 
 	CHART_HEIGHT = 60
 	METHOD_LANES = 19
@@ -451,7 +459,7 @@ class Timeline:
 		self.coded_events = codedevents_list
 		self.commands = commands_list
 		self.pid = pid
-		self.svg_timeline = svgwrite.Drawing(filename = "%02d.svg" % pid, size=("2100px", "300px"))
+		self.svg_timeline = svgwrite.Drawing(filename = "%02d.svg" % pid, size=("2120px", "280px"))
 
 		self.start_time = self.coded_events[0]['Time']
 
@@ -484,7 +492,7 @@ class Timeline:
 		return '\n'.join(str(i) for i in self.commands_list)
 
 	def _draw_timeline_decorations(self):
-		decorations = TimelineDecorations(self.svg_timeline, self.coded_events)
+		decorations = TimelineDecorations(self.svg_timeline, self.coded_events, self.pid)
 		decorations.draw()
 		decorations.draw_legend()
 

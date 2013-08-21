@@ -1,0 +1,7 @@
+#!/bin/sh
+INKSCAPE=/Applications/Inkscape.app/Contents/Resources/bin/inkscape 
+ANALYSISDIR=.
+
+for i in `find $ANALYSISDIR -name '*.svg'`; do
+  $INKSCAPE --without-gui --export-pdf="$ANALYSISDIR/pdf/$(basename $i .svg).pdf" -a=0:0:2120:280 -D $i
+done
