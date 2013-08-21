@@ -32,6 +32,7 @@ class Command:
 		self.record = OrderedDict(zip(fields, line_data))
 
 		try:
+			self.record.pop('Participant', None)
 			self.record['CommandID'] = int(self.record['CommandID'])
 			self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
 			self.record['DocOffset'] = int(self.record['DocOffset'])
@@ -48,6 +49,9 @@ class Command:
 	def __getitem__(self, key):
 		return self.record[key]
 
+	def __setitem__(self, key, value):
+		self.record[key] = value
+
 	def header(self):
 		return ('\t'.join(k for k in self.record.keys()))
 
@@ -55,8 +59,10 @@ class Command:
 		return ('\t'.join(str(v) for v in self.record.values()))
 
 	def tab(self):
-		# Don't output the Line of Code
-		return ('\t'.join(str(v) for v in self.record.values()[0:-1]))
+		# Don't output the Line of Code. Also, strip today's date from the timestamp.
+		r = self.record
+		r['Time'] = "00:%s.%03d" % (str(r['Time'].strftime("%M:%S")), r['Time'].microsecond/1000)
+		return ('\t'.join(str(v) for v in r.values()[0:-1]))
 
 class CodeError(Exception):
 	pass
@@ -148,7 +154,9 @@ class CodedEvent:
 		return ('\t'.join(str(v) for v in self.record.values()))
 
 	def tab(self):
-		return ('\t'.join(str(v) for v in self.record.values()))
+		r = self.record
+		r['Time'] = "00:%s.%03d" % (str(r['Time'].strftime("%M:%S")), r['Time'].microsecond/1000)
+		return ('\t'.join(str(v) for v in r.values()))
 
 class DataLoader:
 	@staticmethod

@@ -172,7 +172,7 @@ class Square:
 			self.learning_or_doing = '!'
 		elif not self.learning_or_doing and self.retrospective == 'n':
 			# Agreement
-			self.learning_or_doing = ''
+			self.learning_or_doing = '^'
 		elif not self.learning_or_doing and not self.retrospective:
 			# Agreement, nominally
 			self.learning_or_doing = ''
@@ -331,7 +331,7 @@ class MethodBar:
 
 	def same_method(self, new_event):
 		"""Is the incoming method the same as the current method?"""
-		if new_event and MethodBar.method_name(new_event) == self.my_name:
+		if new_event and (MethodBar.method_name(new_event) == self.my_name):
 			return True
 		else:
 			return False
@@ -371,10 +371,8 @@ class MethodBar:
 	def _draw_text(self, x_start):
 		if not self.last_text:
 			return True
-			# print "NONE going to write %s at %d,%d" % (self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
 		elif (self.last_text + MethodBar.TEXT_WIDTH) < (x_start):
 			return True
-			# print "%d: going to write %s at %d,%d" % (self.last_text, self.my_name, (bar_x_start + Timeline.X_OFFSET), self.lane)
 		else:
 			return False
 
@@ -453,7 +451,7 @@ class Timeline:
 		self.coded_events = codedevents_list
 		self.commands = commands_list
 		self.pid = pid
-		self.svg_timeline = svgwrite.Drawing(filename = "%02d.svg" % pid, size=("2200px", "300px"))
+		self.svg_timeline = svgwrite.Drawing(filename = "%02d.svg" % pid, size=("2100px", "300px"))
 
 		self.start_time = self.coded_events[0]['Time']
 
@@ -513,25 +511,26 @@ class Timeline:
 
 	def _draw_methods(self):
 		start_event = None
-		previous = None
 		xpos = 0
-		lane = 0
 		
 		for event in self.commands:
-			if not self.before_start(event):
-				
+			if self.before_start(event):
+				# Set any time before the beginning of the session to the start of the session
+				ev_start_at_session = event
+				ev_start_at_session['Time'] = self.start_time
+				start_event = MethodBar(self.svg_timeline, ev_start_at_session, self.start_time, self.visited_methods)
+			else:
 				if not start_event:
 					start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
-				if previous and not start_event.same_method(previous):
-					self.visited_methods = start_event.draw(event)
-					#self.visited_methods.update_last_text(start_event.my_name, start_event.textpos)
-					#print "update textpos: %s, %s" % (start_event.my_name, start_event.textpos)
-					start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
-				previous = event
-				xpos += Timeline.SQUARE_WIDTH
 
-			else:
-				previous = event
+				if not start_event.same_method(event):
+					self.visited_methods = start_event.draw(event)
+					start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
+				
+			xpos += Timeline.SQUARE_WIDTH
+
+		# Draw the final event
+		self.visited_methods = start_event.draw(event)
 
 	def draw(self):
 		"""Converts the textual commands_list to a graphical timeline view in SVG."""
@@ -571,7 +570,6 @@ class VisitedMethods:
 			method_name = MethodBar.METHOD_NULL
 
 		if not method_name in self.methods:
-			# print "creating new %s" % method_name
 			m = {}
 			m['color'] = VisitedMethods.COLORS[self.next % len(VisitedMethods.COLORS)]
 			m['lane'] = self.next
@@ -591,7 +589,7 @@ class VisitedMethods:
 
 if __name__ == "__main__":
 	participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12] # P11 has incomplete commands data
-	# participants = [2]
+	# participants = [6]
 
 	for p in participants:
 		print "Participant %d" % p
