@@ -39,6 +39,7 @@ class Command:
 			self.record['LineOfCode'] = self._strip_quotes(self.record['LineOfCode'])
 		except ValueError, e:
 			print "Exception at index %d: %s" % (self.record['CommandID'], str(e))
+			self.record['error'] = True
 
 	def _strip_quotes(self, field):
 		return field.rstrip('"').lstrip('"')
@@ -51,6 +52,9 @@ class Command:
 
 	def __setitem__(self, key, value):
 		self.record[key] = value
+
+	def __contains__(self, key):
+		return key in self.record
 
 	def header(self):
 		return ('\t'.join(k for k in self.record.keys()))
@@ -77,9 +81,10 @@ class CodedEvent:
 			'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
 			'Forks',
 			'LearningDoing',
-			'Fork matches goal', 'Fork during foraging',
+			'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging',
 			'Retrospective fork',
-			'Retrospective quote']
+			'Retrospective quote',
+			'Retrospective matches goal', 'Retrospective during foraging']
 		line_data = line.split('\t')
 
 		self.record = None
@@ -118,7 +123,9 @@ class CodedEvent:
 
 	def _remove_unused_keys(self):
 		keys_to_delete = ['Transcription', 'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
-			'Fork matches goal', 'Fork during foraging', 'Retrospective quote']
+			'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging',
+			'Retrospective quote',
+			'Retrospective matches goal', 'Retrospective during foraging']
 		for k in keys_to_delete:
 			self.record.pop(k, None)
 

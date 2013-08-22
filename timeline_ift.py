@@ -44,16 +44,12 @@ OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."""
 
-import sys
-import os
-from datetime import time, datetime, date, timedelta
-from collections import OrderedDict
+from datetime import timedelta
 from pyparsing import *
 from math import ceil
 import svgwrite
-import re
 
-from events import VideoTime, Command, CodedEvent, CodeError, DataLoader
+from events import CodeError, DataLoader
 
 class TimelineDecorations:
 	def __init__(self, svg_timeline, coded_events, participant):
@@ -517,28 +513,32 @@ class Timeline:
 			except CommandTooSoonException:
 				pass
 
+	def _event_at_session_start(self, event):
+		ev_start_at_session = event
+		ev_start_at_session['Time'] = self.start_time
+		return ev_start_at_session
+
 	def _draw_methods(self):
 		start_event = None
 		xpos = 0
 		
 		for event in self.commands:
-			if self.before_start(event):
-				# Set any time before the beginning of the session to the start of the session
-				ev_start_at_session = event
-				ev_start_at_session['Time'] = self.start_time
-				start_event = MethodBar(self.svg_timeline, ev_start_at_session, self.start_time, self.visited_methods)
-			else:
-				if not start_event:
-					start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
+			if 'error' not in event:
+				if self.before_start(event):
+					start_event = MethodBar(self.svg_timeline, self._event_at_session_start(event), self.start_time, self.visited_methods)
+				else:
+					if not start_event:
+						start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
 
-				if not start_event.same_method(event):
-					self.visited_methods = start_event.draw(event)
-					start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
-				
+					if not start_event.same_method(event):
+						self.visited_methods = start_event.draw(event)
+						start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
+					
 			xpos += Timeline.SQUARE_WIDTH
 
 		# Draw the final event
-		self.visited_methods = start_event.draw(event)
+		if 'error' not in event:
+			self.visited_methods = start_event.draw(event)
 
 	def draw(self):
 		"""Converts the textual commands_list to a graphical timeline view in SVG."""
@@ -596,7 +596,7 @@ class VisitedMethods:
 
 
 if __name__ == "__main__":
-	participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12] # P11 has incomplete commands data
+	participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] # P11 has incomplete commands data
 	# participants = [6]
 
 	for p in participants:
