@@ -44,6 +44,7 @@ OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."""
 
+import os
 from datetime import timedelta
 from pyparsing import *
 from math import ceil
@@ -434,6 +435,7 @@ class Timeline:
 	X_GAP: The gap between tickmarks on x-axis
 	TIMELABEL: The strftime label on x-axis
 	"""
+	OUTPUT_DIR = "../timeline_forks_data"
 	X_MARGIN = 10
 	X_OFFSET = 60
 	Y_OFFSET = 6
@@ -455,7 +457,7 @@ class Timeline:
 		self.coded_events = codedevents_list
 		self.commands = commands_list
 		self.pid = pid
-		self.svg_timeline = svgwrite.Drawing(filename = "%02d.svg" % pid, size=("2120px", "280px"))
+		self.svg_timeline = svgwrite.Drawing(filename = os.path.join(Timeline.OUTPUT_DIR, "%02d.svg" % pid), size=("2120px", "280px"))
 
 		self.start_time = self.coded_events[0]['Time']
 

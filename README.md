@@ -14,7 +14,8 @@ out items in most user-friendly way (ex: text always on top).
 Inputs
 ---
 
-Place in the data directory:
+Place in the ../timeline_forks_data directory (yes, it's
+one directory above the source code):
 
 - A codes file in tab-separated format, usually
 copy-pastable from Excel, ex: p03-coded.txt

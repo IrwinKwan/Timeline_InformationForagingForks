@@ -166,6 +166,8 @@ class CodedEvent:
 		return ('\t'.join(str(v) for v in r.values()))
 
 class DataLoader:
+	DIR = os.path.join("..", "timeline_forks_data", "data")
+
 	@staticmethod
 	def load_commands(p):
 		filename = DataLoader.commands(p)
@@ -196,8 +198,8 @@ class DataLoader:
 
 	@staticmethod
 	def commands(pid):
-		return os.path.join("data", "p%02d-commands.txt" % (pid))
+		return os.path.join(DataLoader.DIR, "p%02d-commands.txt" % (pid))
 
 	@staticmethod
 	def codedevents(pid):
-		return os.path.join("data", "p%02d-coded.txt" % (pid))
+		return os.path.join(DataLoader.DIR, "p%02d-coded.txt" % (pid))
