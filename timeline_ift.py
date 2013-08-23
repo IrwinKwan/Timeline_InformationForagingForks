@@ -181,18 +181,15 @@ class Square:
 		fork_text = ''
 
 		if self.fork > 0 and self.retrospective == 'y':
-			# True positive
 			fork_text = 'f'
 			style = self.svg_timeline.g(style='text-decoration:underline; font-weight:bold')
 		elif self.fork == 0 and self.retrospective.lower() == 'y':
-			# False negative
-			fork_text = ''
+			fork_text = 'x'
 		elif self.fork > 0 and self.retrospective == 'n':
-			# False positive
-			fork_text = ''
+			fork_text = 'x'
 		elif self.fork == 0 and self.retrospective.lower() == 'n':
-			# True negative
-			fork_text = ''
+			
+			fork_text = 'f'
 
 		text = self.svg_timeline.text(
 			fork_text,
@@ -237,7 +234,7 @@ class EventLine:
 	COLOR = OrderedDict()
 	COLOR['open'] = 'maroon'
 	COLOR['select'] = 'indigo'
-	COLOR['move'] = 'darkred'
+	COLOR['move'] = 'yellow'
 	COLOR['move_keyboard'] = 'magenta'
 	COLOR['edit'] = 'red'
 	COLOR['find'] = 'orange'
@@ -306,6 +303,7 @@ class EventLine:
 		self._draw(EventLine.COLOR['default'], 240, xpos)
 
 	def _draw(self, color, top, xpos):
+		# add bottom.
 		self.svg_timeline.add(self.svg_timeline.line(
 				start=(xpos + Timeline.X_OFFSET, top + Timeline.Y_OFFSET),
 				end=(xpos + Timeline.X_OFFSET, Timeline.HEIGHT + Timeline.Y_OFFSET)).
@@ -323,6 +321,17 @@ class EventLine:
 			or self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.RunLast":
 			self._draw_run(xpos)
 		elif self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.eof":
+			pass
+		elif self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.gotoBreadcrumb":
+			pass
+		elif self.event['EclipseCommand'] == "org.eclipse.ui.views.showView":
+			pass
+		elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.showInformation":
+			pass
+		elif self.event['EclipseCommand'] == 'AUTOGEN:::org.eclipse.jdt.internal.ui.CompilationUnitEditor.ruler.actions/org.eclipse.jdt.internal.ui.javaeditor.JavaSelectRulerAction':
+			print "Add an event and check what a JavaSelectRulerAction is"
+			pass
+		elif self.event['EclipseCommand'] == 'org.eclipse.ui.edit.selectAll':
 			pass
 		elif self.event['EclipseCommand'] == "eventLogger.styledTextCommand.COLUMN_NEXT" \
 			or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.COLUMN_PREVIOUS" \
@@ -342,7 +351,7 @@ class EventLine:
 			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.select.wordPrevious":
 			# Keyboard commands for navigating text
 			self._draw_keyboard_move(xpos)
-		elif self.event['EclipseCommand'] == "AUTOGEN:::rg.eclipse.jdt.debug.CompilationUnitEditor.BreakpointRulerActions/org.eclipse.jdt.debug.ui.actions.ManageBreakpointRulerAction":
+		elif self.event['EclipseCommand'] == 'AUTOGEN:::org.eclipse.jdt.debug.CompilationUnitEditor.BreakpointRulerActions/org.eclipse.jdt.debug.ui.actions.ManageBreakpointRulerAction':
 			self._draw_breakpoint_ruler(xpos)
 		elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.JavaPerspective':
 			self._draw_java_perspective(xpos)
@@ -372,6 +381,7 @@ class EventLine:
 		elif self.event['EclipseCommand'] == "org.eclipse.ui.file.save":
 			self._draw_save(xpos)
 		else:
+			print 'EclipseCommand ' + self.event['EclipseCommand']
 			self._draw_default(xpos)
 
 	def draw(self):
@@ -393,7 +403,7 @@ class EventLine:
 		elif self.event['Command'] == 'Insert' \
 			or self.event['Command'] == 'Delete' \
 			or self.event['Command'] == 'Replace' \
-			or self.event['Command'] == 'Undo':
+			or self.event['Command'] == 'UndoCommand':
 			self._draw_edit(xpos)
 		elif self.event['Command'] == 'InsertStringCommand':
 			# This overlaps with 'Insert'
@@ -405,6 +415,7 @@ class EventLine:
 		elif self.event['Command'] == 'EclipseCommand':
 			self._eclipseCommand(xpos)			
 		else:
+			print self.event['Command']
 			self._draw_default(xpos)
 
 
@@ -678,11 +689,7 @@ class VisitedMethods:
 
 	def __init__(self):
 		self.methods = {}
-		self.next = 1
-		none_method = {'color': 'grey',
-			'lane': 0,
-			'last_text': None}
-		self.methods[MethodBar.METHOD_NULL] = none_method
+		self.next = 0
 
 	def is_unknown(self, method_name):
 		method = method_name.split(':')[-1]
@@ -692,14 +699,15 @@ class VisitedMethods:
 			return False
 
 	def get(self, method_name):
-		if self.is_unknown(method_name):
-			method_name = MethodBar.METHOD_NULL
-
 		if not method_name in self.methods:
 			m = {}
-			m['color'] = VisitedMethods.COLORS[self.next % len(VisitedMethods.COLORS)]
-			m['lane'] = self.next
+			if self.is_unknown(method_name):
+				m['color'] = 'grey'
+			else:
+				m['color'] = VisitedMethods.COLORS[self.next % len(VisitedMethods.COLORS)]
+
 			m['last_text'] = None
+			m['lane'] = self.next
 			self.methods[method_name] = m
 			self.next = (self.next + 1) % VisitedMethods.LANES
 			if self.next == 0:
@@ -714,8 +722,8 @@ class VisitedMethods:
 
 
 if __name__ == "__main__":
-	participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] # P11 has incomplete commands data
-	# participants = [6]
+	#participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] # P11 has incomplete commands data
+	participants = [7]
 
 	for p in participants:
 		print "Participant %d" % p
