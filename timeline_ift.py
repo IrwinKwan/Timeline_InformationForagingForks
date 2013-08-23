@@ -49,6 +49,7 @@ from datetime import timedelta
 from pyparsing import *
 from math import ceil
 import svgwrite
+from collections import OrderedDict
 
 from events import CodeError, DataLoader
 
@@ -100,7 +101,20 @@ class TimelineDecorations:
 
 			alternate += 1
 
-	def _draw_x_labels(self):
+	def _draw_sessiontime(self):
+		duration = self._calculate_timeline_duration(self.coded_events)
+		minute = 1
+		for xpos in range(0, int(ceil(duration.total_seconds())), Timeline.X_LABEL_GAP):
+
+			self.svg_timeline.add(self.svg_timeline.text(minute,
+				insert=(xpos + Timeline.X_OFFSET, 14),
+				font_family="sans-serif",
+				font_size="14"))
+			minute += 1
+
+
+
+	def _draw_videotime(self):
 		duration = self._calculate_timeline_duration(self.coded_events)
 
 		ce_index = 0
@@ -114,6 +128,10 @@ class TimelineDecorations:
 				pass
 
 			ce_index += 2
+
+	def _draw_x_labels(self):
+		self._draw_videotime()
+		self._draw_sessiontime()
 
 	def _draw_participant_label(self):
 		self.svg_timeline.add(self.svg_timeline.text("P%02d" % (self.participant),
@@ -130,24 +148,10 @@ class TimelineDecorations:
 
 		startpos = Timeline.X_OFFSET - 2
 
-		legend.add(svgwrite.text.TSpan("Open", insert=None, fill=EventLine.COLOR_OPEN,
-			x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Select", insert=None, fill=EventLine.COLOR_SELECT,
-			x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Move", insert=None, fill=EventLine.COLOR_MOVE,
-			x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Editing", insert=None, fill=EventLine.COLOR_EDIT,
-			x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Finding", insert=None, fill=EventLine.COLOR_FIND,
-			x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Run", insert=None, fill=EventLine.COLOR_RUN,
-			x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Debugging", insert=None, fill=EventLine.COLOR_DEBUGGING,
-			x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Stop", insert=None, fill=EventLine.COLOR_TERMINATE,
-			x=[startpos], dy=[10]))
-		legend.add(svgwrite.text.TSpan("Other", insert=None, fill=EventLine.COLOR_DEFAULT,
-			x=[startpos], dy=[10]))
+		for key, value in EventLine.COLOR.items():
+
+			legend.add(svgwrite.text.TSpan(key.replace("_", " ").capitalize(), insert=None, fill=value,
+				x=[startpos], dy=[10]))
 
 		self.svg_timeline.add(legend)
 
@@ -157,6 +161,7 @@ class Square:
 
 		self.svg_timeline = svg_timeline
 		self.foraging = event['Foraging']
+		self.index = event['Index']
 
 		try:
 			self.retrospective = event['Retrospective fork']
@@ -173,25 +178,24 @@ class Square:
 		size = "14"
 		style = None
 
-		if not self.learning_or_doing and self.retrospective == 'y':
-			self.learning_or_doing = '!'
-		elif not self.learning_or_doing and self.retrospective == 'n':
-			# Agreement
-			self.learning_or_doing = '^'
-		elif not self.learning_or_doing and not self.retrospective:
-			# Agreement, nominally
-			self.learning_or_doing = ''
-		else:
-			if self.learning_or_doing and not self.retrospective:
-				self.learning_or_doing += '?'
-			elif self.learning_or_doing and self.retrospective.lower() == 'y':
-				style = self.svg_timeline.g(style='text-decoration:underline; font-weight:bold')
-				self.learning_or_doing += "+"
-			elif self.learning_or_doing and self.retrospective.lower() == 'n':
-				self.learning_or_doing += "-"
+		fork_text = ''
+
+		if self.fork > 0 and self.retrospective == 'y':
+			# True positive
+			fork_text = 'f'
+			style = self.svg_timeline.g(style='text-decoration:underline; font-weight:bold')
+		elif self.fork == 0 and self.retrospective.lower() == 'y':
+			# False negative
+			fork_text = ''
+		elif self.fork > 0 and self.retrospective == 'n':
+			# False positive
+			fork_text = ''
+		elif self.fork == 0 and self.retrospective.lower() == 'n':
+			# True negative
+			fork_text = ''
 
 		text = self.svg_timeline.text(
-			self.learning_or_doing,
+			fork_text,
 			insert=(xpos + Timeline.SQUARE_WIDTH/2 + Timeline.X_OFFSET, Timeline.CHART_HEIGHT/2 + Timeline.Y_OFFSET),
 			font_family="sans-serif",
 			font_size=size,
@@ -230,15 +234,23 @@ class EventLine:
 
 	HEIGHT = 10
 
-	COLOR_OPEN = 'chocolate'
-	COLOR_SELECT = 'darkviolet'
-	COLOR_MOVE = 'magenta'
-	COLOR_EDIT = 'red'
-	COLOR_FIND = 'orange'
-	COLOR_RUN = 'darkgreen'
-	COLOR_DEBUGGING = 'springgreen'
-	COLOR_TERMINATE = 'olive'
-	COLOR_DEFAULT = 'maroon'
+	COLOR = OrderedDict()
+	COLOR['open'] = 'maroon'
+	COLOR['select'] = 'indigo'
+	COLOR['move'] = 'darkred'
+	COLOR['move_keyboard'] = 'magenta'
+	COLOR['edit'] = 'red'
+	COLOR['find'] = 'orange'
+	COLOR['assist'] = 'blue'
+	COLOR['save'] = 'deeppink'
+	COLOR['run'] = 'darkgreen'
+	COLOR['debugging'] = 'olive'
+	COLOR['breakpoint_ruler'] = 'darkolivegreen'
+	COLOR['java_perspective'] = 'olivedrab'
+	COLOR['terminate'] = 'greenyellow'
+	COLOR['open_editor'] = 'slateblue'
+	COLOR['call_hierarchy'] = 'steelblue'
+	COLOR['default'] = 'darkslategrey'
 
 	def __init__(self, svg_timeline, event, start):
 		self.svg_timeline = svg_timeline
@@ -246,31 +258,52 @@ class EventLine:
 		self.start_time = start
 
 	def _draw_open(self, xpos):
-		self._draw(EventLine.COLOR_OPEN, -5, xpos)
+		self._draw(EventLine.COLOR['open'], -5, xpos)
 
 	def _draw_select(self, xpos):
-		self._draw(EventLine.COLOR_SELECT, 10, xpos)
+		self._draw(EventLine.COLOR['select'], 30, xpos)
 
 	def _draw_move(self, xpos):
-		self._draw(EventLine.COLOR_MOVE, 20, xpos)
+		self._draw(EventLine.COLOR['move'], 60, xpos)
+
+	def _draw_keyboard_move(self, xpos):
+		self._draw(EventLine.COLOR['move_keyboard'], 60, xpos)
 
 	def _draw_edit(self, xpos):
-		self._draw(EventLine.COLOR_EDIT, 30, xpos)
+		self._draw(EventLine.COLOR['edit'], 70, xpos)
 
 	def _draw_find(self, xpos):
-		self._draw(EventLine.COLOR_FIND, 40, xpos)
+		self._draw(EventLine.COLOR['find'], 140, xpos)
+
+	def _draw_assist(self, xpos):
+		self._draw(EventLine.COLOR['assist'], 140, xpos)
+
+	def _draw_save(self, xpos):
+		self._draw(EventLine.COLOR['save'], 180, xpos)
 
 	def _draw_run(self, xpos):
-		self._draw(EventLine.COLOR_RUN, 50, xpos)
+		self._draw(EventLine.COLOR['run'], 180, xpos)
 
 	def _draw_debugging(self, xpos):
-		self._draw(EventLine.COLOR_DEBUGGING, 60, xpos)
+		self._draw(EventLine.COLOR['debugging'], 200, xpos)
+
+	def _draw_breakpoint_ruler(self, xpos):
+		self._draw(EventLine.COLOR['breakpoint_ruler'], 210, xpos)
 
 	def _draw_terminate(self, xpos):
-		self._draw(EventLine.COLOR_TERMINATE, 70, xpos)
+		self._draw(EventLine.COLOR['terminate'], 190, xpos)
+
+	def _draw_java_perspective(self, xpos):
+		self._draw(EventLine.COLOR['java_perspective'], 210, xpos)
+
+	def _draw_open_editor(self, xpos):
+		self._draw(EventLine.COLOR['open_editor'], 220, xpos)
+
+	def _draw_call_hierarchy(self, xpos):
+		self._draw(EventLine.COLOR['call_hierarchy'], 140, xpos)		
 
 	def _draw_default(self, xpos):
-		self._draw(EventLine.COLOR_DEFAULT, 80, xpos)
+		self._draw(EventLine.COLOR['default'], 240, xpos)
 
 	def _draw(self, color, top, xpos):
 		self.svg_timeline.add(self.svg_timeline.line(
@@ -281,15 +314,65 @@ class EventLine:
 	def _eclipseCommand(self, xpos):
 		if self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.StepOver" \
 			or self.event['EclipseCommand'] ==  "org.eclipse.debug.ui.commands.StepInto" \
-			or self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.StepReturn":
+			or self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.StepReturn" \
+			or self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.Resume":
 			self._draw_debugging(xpos)
 		elif self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.Terminate":
 			self._draw_terminate(xpos)
-		elif self.event['EclipseCommand'] == "AUTOGEN:::org.eclipse.jdt.debug.CompilationUnitEditor.BreakpointRulerActions/org.eclipse.jdt.debug.ui.actions.ManageBreakpointRulerAction":
-			self._draw_debugging(xpos)
+		elif self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.DebugLast" \
+			or self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.RunLast":
+			self._draw_run(xpos)
+		elif self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.eof":
+			pass
+		elif self.event['EclipseCommand'] == "eventLogger.styledTextCommand.COLUMN_NEXT" \
+			or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.COLUMN_PREVIOUS" \
+			or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.DELETE_PREVIOUS" \
+			or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.LINE_DOWN" \
+			or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.LINE_UP" \
+			or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.SELECT_COLUMN_NEXT" \
+			or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.SELECT_COLUMN_PREVIOUS" \
+			or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.SELECT_LINE_UP" \
+			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.lineEnd" \
+			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.lineStart" \
+			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.textStart" \
+			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.wordNext" \
+			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.wordPrevious" \
+			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.select.lineStart" \
+			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.select.wordNext" \
+			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.select.wordPrevious":
+			# Keyboard commands for navigating text
+			self._draw_keyboard_move(xpos)
+		elif self.event['EclipseCommand'] == "AUTOGEN:::rg.eclipse.jdt.debug.CompilationUnitEditor.BreakpointRulerActions/org.eclipse.jdt.debug.ui.actions.ManageBreakpointRulerAction":
+			self._draw_breakpoint_ruler(xpos)
+		elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.JavaPerspective':
+			self._draw_java_perspective(xpos)
+		elif self.event['EclipseCommand'] == 'org.eclipse.ui.perspectives.showPerspective':
+			# This overlaps with JavaPerspective
+			pass
+		elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.edit.text.java.open.call.hierarchy':
+			self._draw_call_hierarchy(xpos)
+		elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.navigate.open.type.in.hierarchy':
+			self._draw_call_hierarchy(xpos)
+		elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.contentAssist.proposals":
+			self._draw_assist(xpos)
+		elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.edit.text.java.open.editor':
+			# An open declaration or similar that requires going to another file
+			self._draw_open_editor(xpos)
+		elif self.event['EclipseCommand'] == "org.eclipse.search.ui.openFileSearchPage" \
+			or self.event['EclipseCommand'] == "org.eclipse.search.ui.openSearchDialog" \
+			or self.event['EclipseCommand'] == "org.eclipse.search.ui.performTextSearchFile" \
+			or self.event['EclipseCommand'] == "org.eclipse.search.ui.performTextSearchWorkspace" \
+			or self.event['EclipseCommand'] == "org.eclipse.ui.edit.findNext"\
+			or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.declarations.in.project" \
+			or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.declarations.in.workspace" \
+			or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.references.in.project":
+			self._draw_find(xpos)
+		elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.folding.collapse_all":
+			pass
+		elif self.event['EclipseCommand'] == "org.eclipse.ui.file.save":
+			self._draw_save(xpos)
 		else:
 			self._draw_default(xpos)
-
 
 	def draw(self):
 		xpos = Timeline.calculate_x_position(self.start_time, self.event['Time'])
@@ -299,15 +382,26 @@ class EventLine:
 		elif self.event['Command'] == 'SelectTextCommand':
 			self._draw_select(xpos)
 		elif self.event['Command'] == 'MoveCaretCommand':
-			self._draw_move(xpos)
+			# self._draw_move(xpos)
+			pass
+		elif self.event['Command'] == 'CopyCommand' \
+			or self.event['Command'] == 'CutCommand' \
+			or self.event['Command'] == 'PasteCommand':
+			pass
 		elif self.event['Command'] == 'RunCommand':
 			self._draw_run(xpos)
+		elif self.event['Command'] == 'Insert' \
+			or self.event['Command'] == 'Delete' \
+			or self.event['Command'] == 'Replace' \
+			or self.event['Command'] == 'Undo':
+			self._draw_edit(xpos)
 		elif self.event['Command'] == 'InsertStringCommand':
-			self._draw_edit(xpos)
-		elif self.event['Command'] == 'Insert' or self.event['Command'] == 'Delete' or self.event['Command'] == 'Replace':
-			self._draw_edit(xpos)
+			# This overlaps with 'Insert'
+			pass
 		elif self.event['Command'] == 'FindCommand':
 			self._draw_find(xpos)
+		elif self.event['Command'] == 'AssistCommand':
+			self._draw_assist(xpos)
 		elif self.event['Command'] == 'EclipseCommand':
 			self._eclipseCommand(xpos)			
 		else:
@@ -320,6 +414,9 @@ class MethodLaneException(Exception):
 class MethodBar:
 	TEXT_WIDTH = 120
 	METHOD_NULL = "Other"
+
+	# Threshold in seconds, if visits are less or equal to this value, don't draw it as visited.
+	VISIT_THRESHOLD = 0.1 
 
 	def __init__(self, svg_timeline, event_start, timeline_start, visited_methods):
 
@@ -417,11 +514,14 @@ class MethodBar:
 
 		x_start = self._xstart() + Timeline.X_OFFSET
 
-		self._draw_bar(x_start)
-		if self._draw_text(x_start):
-			self._draw_method(x_start)
+		duration = self.end['Time'] - self.start['Time']
+		if duration.total_seconds() > MethodBar.VISIT_THRESHOLD:
+			self._draw_bar(x_start)
+			if self._draw_text(x_start):
+				self._draw_method(x_start)
 
-		self.visited_methods.update_last_text(self.my_name, self.last_text)
+			self.visited_methods.update_last_text(self.my_name, self.last_text)
+
 		return self.visited_methods
 
 
@@ -437,8 +537,8 @@ class Timeline:
 	"""
 	OUTPUT_DIR = "../timeline_forks_data"
 	X_MARGIN = 10
-	X_OFFSET = 60
-	Y_OFFSET = 6
+	X_OFFSET = 80
+	Y_OFFSET = 16
 
 	CHART_HEIGHT = 60
 	METHOD_LANES = 19
@@ -457,7 +557,7 @@ class Timeline:
 		self.coded_events = codedevents_list
 		self.commands = commands_list
 		self.pid = pid
-		self.svg_timeline = svgwrite.Drawing(filename = os.path.join(Timeline.OUTPUT_DIR, "%02d.svg" % pid), size=("2120px", "280px"))
+		self.svg_timeline = svgwrite.Drawing(filename = os.path.join(Timeline.OUTPUT_DIR, "%02d.svg" % pid), size=("2220px", "290px"))
 
 		self.start_time = self.coded_events[0]['Time']
 
@@ -508,12 +608,28 @@ class Timeline:
 		line = EventLine(self.svg_timeline, event, self.start_time)
 		line.draw()
 
+	def _draw_overlap(self, xpos):
+		self.svg_timeline.add(self.svg_timeline.line(
+				start=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET),
+				end=(xpos + Timeline.X_OFFSET, 5 + Timeline.Y_OFFSET)).
+				stroke(color="black", width=1, opacity=1.0))
+
 	def _draw_command_events(self):
+		event_queue = {}
 		for event in self.commands:
+						
 			try:
+				xpos = Timeline.calculate_x_position(self.start_time, event['Time'])
+				if xpos in event_queue:
+					self._draw_overlap(xpos)
+				else:
+					event_queue[xpos] = event
+
 				self._draw_command_event(event)
 			except CommandTooSoonException:
 				pass
+
+		# Draw everything in the queue
 
 	def _event_at_session_start(self, event):
 		ev_start_at_session = event

@@ -115,7 +115,6 @@ class CodedEvent:
 			except (KeyError, IndexError), e:
 				print "Error at index %d: %s" % (self.record['Index'], str(e))
 				print self.record
-				
 
 		else:
 			self.record = None
