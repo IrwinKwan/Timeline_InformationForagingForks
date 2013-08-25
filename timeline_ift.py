@@ -188,7 +188,6 @@ class Square:
         elif self.fork > 0 and self.retrospective == 'n':
             fork_text = 'x'
         elif self.fork == 0 and self.retrospective.lower() == 'n':
-            
             fork_text = 'f'
 
         text = self.svg_timeline.text(
@@ -238,6 +237,7 @@ class EventLine:
     COLOR['move_keyboard'] = 'magenta'
     COLOR['edit'] = 'red'
     COLOR['find'] = 'orange'
+    COLOR['find_next'] = 'green'
     COLOR['assist'] = 'blue'
     COLOR['save'] = 'deeppink'
     COLOR['run'] = 'darkgreen'
@@ -271,6 +271,9 @@ class EventLine:
 
     def _draw_find(self, xpos):
         self._draw(EventLine.COLOR['find'], 140, xpos)
+
+    def _draw_find_next(self, xpos):
+        self._draw(EventLine.COLOR['find_next'], 140, xpos)
 
     def _draw_assist(self, xpos):
         self._draw(EventLine.COLOR['assist'], 140, xpos)
@@ -332,9 +335,7 @@ class EventLine:
             pass
         elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.showInformation":
             pass
-        elif self.event['EclipseCommand'] == 'AUTOGEN:::org.eclipse.jdt.internal.ui.CompilationUnitEditor.ruler.actions/org.eclipse.jdt.internal.ui.javaeditor.JavaSelectRulerAction':
-            print "Add an event and check what a JavaSelectRulerAction is"
-            pass
+        
         elif self.event['EclipseCommand'] == 'org.eclipse.ui.edit.selectAll':
             pass
         elif self.event['EclipseCommand'] == "eventLogger.styledTextCommand.COLUMN_NEXT" \
@@ -357,6 +358,9 @@ class EventLine:
             self._draw_keyboard_move(xpos)
         elif self.event['EclipseCommand'] == 'AUTOGEN:::org.eclipse.jdt.debug.CompilationUnitEditor.BreakpointRulerActions/org.eclipse.jdt.debug.ui.actions.ManageBreakpointRulerAction':
             self._draw_breakpoint_ruler(xpos)
+        elif self.event['EclipseCommand'] == 'AUTOGEN:::org.eclipse.jdt.internal.ui.CompilationUnitEditor.ruler.actions/org.eclipse.jdt.internal.ui.javaeditor.JavaSelectRulerAction':
+            # Clicking on the left-hand editor gutter
+            pass
         elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.JavaPerspective':
             self._draw_java_perspective(xpos)
         elif self.event['EclipseCommand'] == 'org.eclipse.ui.perspectives.showPerspective':
@@ -371,21 +375,36 @@ class EventLine:
         elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.edit.text.java.open.editor':
             # An open declaration or similar that requires going to another file
             self._draw_open_editor(xpos)
+        elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.findNext":
+            self._draw_find_next(xpos)
         elif self.event['EclipseCommand'] == "org.eclipse.search.ui.openFileSearchPage" \
             or self.event['EclipseCommand'] == "org.eclipse.search.ui.openSearchDialog" \
             or self.event['EclipseCommand'] == "org.eclipse.search.ui.performTextSearchFile" \
             or self.event['EclipseCommand'] == "org.eclipse.search.ui.performTextSearchWorkspace" \
-            or self.event['EclipseCommand'] == "org.eclipse.ui.edit.findNext"\
             or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.declarations.in.project" \
             or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.declarations.in.workspace" \
-            or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.references.in.project":
+            or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.references.in.project" \
+            or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.references.in.workspace":
             self._draw_find(xpos)
         elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.folding.collapse_all":
             pass
         elif self.event['EclipseCommand'] == "org.eclipse.ui.file.save":
             self._draw_save(xpos)
+        elif self.event['EclipseCommand'] == "org.eclipse.ui.file.properties":
+            pass
+        elif self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.show.outline":
+            pass
+        elif self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.organize.imports":
+            pass
+        elif self.event['EclipseCommand'] == "org.eclipse.ui.navigate.openResource":
+            pass
+        elif self.event['EclipseCommand'] == "EclipseCommand org.eclipse.jdt.ui.navigate.open.type":
+            self._draw_default(xpos)
+        elif self.event['EclipseCommand'] == "EclipseCommand org.eclipse.ui.file.refresh":
+            self._draw_default(xpos)
+        elif self.event['EclipseCommand'] == "EclipseCommand org.eclipse.ui.window.newEditor":
+            self._draw_default(xpos)
         else:
-            print 'EclipseCommand ' + self.event['EclipseCommand']
             self._draw_default(xpos)
 
     def draw(self):
