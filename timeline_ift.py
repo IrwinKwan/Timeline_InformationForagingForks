@@ -61,7 +61,13 @@ class TimelineDecorations:
 
     def draw(self):
         self._draw_x_axis()
-        self._draw_x_axis(Timeline.CHART_HEIGHT)
+        self._draw_x_axis(30)
+        self._draw_x_axis(50)
+        self._draw_x_axis(110)
+        self._draw_x_axis(130)
+        self._draw_x_axis(180)
+        self._draw_x_axis(200)
+        self._draw_x_axis(Timeline.CHART_HEIGHT)     
         self._draw_x_axis(Timeline.HEIGHT)
         self._draw_x_tickmarks()
         self._draw_x_labels()
@@ -144,7 +150,7 @@ class TimelineDecorations:
             insert=(0, Timeline.Y_OFFSET),
             font_family="sans-serif",
             text_anchor="end",
-            font_size="9")
+            font_size="8")
 
         startpos = Timeline.X_OFFSET - 2
 
@@ -192,7 +198,7 @@ class Square:
 
         text = self.svg_timeline.text(
             fork_text,
-            insert=(xpos + Timeline.SQUARE_WIDTH/2 + Timeline.X_OFFSET, Timeline.CHART_HEIGHT/2 + Timeline.Y_OFFSET),
+            insert=(xpos + Timeline.SQUARE_WIDTH/2 + Timeline.X_OFFSET, Timeline.CHART_HEIGHT - 10 + Timeline.Y_OFFSET),
             font_family="sans-serif",
             font_size=size,
             text_anchor="middle",
@@ -226,6 +232,26 @@ class Square:
 class CommandTooSoonException(Exception):
     pass
 
+
+class EventViewProperty:
+    def __init__(self, color, top, height, css_class):
+        self.color = color
+        self.top = top
+        self.bottom = bottom
+        self.css_class = css_class
+
+
+class EventViewProperties:
+    def __init__(self):
+        self.event = OrderedDict()
+
+        self.event['open'] = EventView('maroon', -5, 10, 'open')
+        self.event['indigo'] = EventView('indigo', 30, 10, 'indigo')
+
+    def __getitem__(self, key):
+        return self.event[key]
+
+
 class EventLine:
 
     HEIGHT = 10
@@ -236,8 +262,13 @@ class EventLine:
     COLOR['move'] = 'yellow'
     COLOR['move_keyboard'] = 'magenta'
     COLOR['edit'] = 'red'
-    COLOR['find'] = 'orange'
+    COLOR['text_search'] = 'orange'
     COLOR['find_next'] = 'green'
+    COLOR['find_dialog'] = 'steelblue'
+    COLOR['search_declarations'] = 'red'
+    COLOR['file_search'] = 'pink'
+    COLOR['search_references'] = 'green'
+    
     COLOR['assist'] = 'blue'
     COLOR['save'] = 'deeppink'
     COLOR['run'] = 'darkgreen'
@@ -247,6 +278,7 @@ class EventLine:
     COLOR['terminate'] = 'greenyellow'
     COLOR['open_editor'] = 'slateblue'
     COLOR['call_hierarchy'] = 'steelblue'
+    
     COLOR['default'] = 'darkslategrey'
 
     def __init__(self, svg_timeline, event, start):
@@ -255,190 +287,267 @@ class EventLine:
         self.start_time = start
 
     def _draw_open(self, xpos):
-        self._draw(EventLine.COLOR['open'], -5, xpos)
+        self._draw(EventLine.COLOR['open'], 0, 1, xpos)
 
     def _draw_select(self, xpos):
-        self._draw(EventLine.COLOR['select'], 30, xpos)
+        self._draw(EventLine.COLOR['select'], 30, 2, xpos)
 
     def _draw_move(self, xpos):
-        self._draw(EventLine.COLOR['move'], 60, xpos)
+        self._draw(EventLine.COLOR['move'], 60, 3, xpos)
 
     def _draw_keyboard_move(self, xpos):
-        self._draw(EventLine.COLOR['move_keyboard'], 60, xpos)
+        self._draw(EventLine.COLOR['move_keyboard'], 60, 4, xpos)
 
     def _draw_edit(self, xpos):
-        self._draw(EventLine.COLOR['edit'], 70, xpos)
+        self._draw(EventLine.COLOR['edit'], 70, 5, xpos)
 
     def _draw_find(self, xpos):
-        self._draw(EventLine.COLOR['find'], 140, xpos)
+        self._draw(EventLine.COLOR['text_search'], 140, 6, xpos)
 
     def _draw_find_next(self, xpos):
-        self._draw(EventLine.COLOR['find_next'], 140, xpos)
+        self._draw(EventLine.COLOR['find_next'], 140, 7, xpos)
+
+    def _draw_search_declarations(self, xpos):
+        self._draw(EventLine.COLOR['search_declarations'], 140, 9, xpos)
+
+    def _draw_search_file(self, xpos):
+        self._draw(EventLine.COLOR['file_search'], 140, 10, xpos)
+
+    def _draw_search_references(self, xpos):
+        self._draw(EventLine.COLOR['search_references'], 140, 11, xpos)
 
     def _draw_assist(self, xpos):
-        self._draw(EventLine.COLOR['assist'], 140, xpos)
-
+        self._draw(EventLine.COLOR['assist'], 140, 12, xpos)
+        
     def _draw_save(self, xpos):
-        self._draw(EventLine.COLOR['save'], 180, xpos)
+        self._draw(EventLine.COLOR['save'], 180, 13, xpos)
 
     def _draw_run(self, xpos):
-        self._draw(EventLine.COLOR['run'], 180, xpos)
+        self._draw(EventLine.COLOR['run'], 180, 14, xpos)
 
     def _draw_debugging(self, xpos):
-        self._draw(EventLine.COLOR['debugging'], 200, xpos)
+        self._draw(EventLine.COLOR['debugging'], 200, 15, xpos)
 
     def _draw_breakpoint_ruler(self, xpos):
-        self._draw(EventLine.COLOR['breakpoint_ruler'], 210, xpos)
-
-    def _draw_terminate(self, xpos):
-        self._draw(EventLine.COLOR['terminate'], 190, xpos)
+        self._draw(EventLine.COLOR['breakpoint_ruler'], 210, 16, xpos)
 
     def _draw_java_perspective(self, xpos):
-        self._draw(EventLine.COLOR['java_perspective'], 210, xpos)
+        self._draw(EventLine.COLOR['java_perspective'], 210, 17, xpos)
+
+    def _draw_terminate(self, xpos):
+        self._draw(EventLine.COLOR['terminate'], 190, 18, xpos)
 
     def _draw_open_editor(self, xpos):
-        self._draw(EventLine.COLOR['open_editor'], 220, xpos)
+        self._draw(EventLine.COLOR['open_editor'], 220, 19, xpos)
 
     def _draw_call_hierarchy(self, xpos):
-        self._draw(EventLine.COLOR['call_hierarchy'], 140, xpos)        
+        self._draw(EventLine.COLOR['call_hierarchy'], 140, 20, xpos)
 
     def _draw_default(self, xpos):
-        self._draw(EventLine.COLOR['default'], 240, xpos)
+        self._draw(EventLine.COLOR['default'], 240, 21, xpos)
 
-    def _draw(self, color, top, xpos):
-        # add bottom.
+    def _draw(self, color, top, lane, xpos):
+
         # self.svg_timeline.add(self.svg_timeline.line(
         #       start=(xpos + Timeline.X_OFFSET, top + Timeline.Y_OFFSET),
         #       end=(xpos + Timeline.X_OFFSET, Timeline.HEIGHT + Timeline.Y_OFFSET)).
         #       stroke(color=color, width=1, opacity=0.9))
+
         self.svg_timeline.add(self.svg_timeline.line(
-            start=(xpos + Timeline.X_OFFSET, top + Timeline.Y_OFFSET),
-            end=(xpos + Timeline.X_OFFSET, Timeline.HEIGHT + Timeline.Y_OFFSET)).
+            start=(xpos + Timeline.X_OFFSET, ((lane - 1) * EventLine.HEIGHT) + Timeline.Y_OFFSET),
+            end=(xpos + Timeline.X_OFFSET, ((lane - 1) * EventLine.HEIGHT) + EventLine.HEIGHT + Timeline.Y_OFFSET)).
             stroke(color=color, width=1, opacity=0.9))
 
     def _eclipseCommand(self, xpos):
-        if self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.StepOver" \
-            or self.event['EclipseCommand'] ==  "org.eclipse.debug.ui.commands.StepInto" \
-            or self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.StepReturn" \
-            or self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.Resume":
+        ec = self.event['EclipseCommand']
+
+        if self.event['EclipseCommand'] == 'AUTOGEN:::org.eclipse.jdt.debug.CompilationUnitEditor.BreakpointRulerActions/org.eclipse.jdt.debug.ui.actions.ManageBreakpointRulerAction':
+            # Clicking in the Java Code Editor breakpoint gutter
             self._draw_debugging(xpos)
-        elif self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.Terminate":
-            self._draw_terminate(xpos)
-        elif self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.DebugLast" \
-            or self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.RunLast":
-            self._draw_run(xpos)
-        elif self.event['EclipseCommand'] == "org.eclipse.debug.ui.commands.eof":
+        elif ec == "AUTOGEN:::org.eclipse.jdt.internal.ui.CompilationUnitEditor.ruler.actions/org.eclipse.jdt.internal.ui.javaeditor.JavaSelectRulerAction":
+            # Clicking in the Java Code Editor gutter
             pass
-        elif self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.gotoBreadcrumb":
-            pass
-        elif self.event['EclipseCommand'] == "org.eclipse.ui.views.showView":
-            pass
-        elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.showInformation":
-            pass
-        
-        elif self.event['EclipseCommand'] == 'org.eclipse.ui.edit.selectAll':
-            pass
-        elif self.event['EclipseCommand'] == "eventLogger.styledTextCommand.COLUMN_NEXT" \
-            or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.COLUMN_PREVIOUS" \
-            or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.DELETE_PREVIOUS" \
-            or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.LINE_DOWN" \
-            or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.LINE_UP" \
-            or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.SELECT_COLUMN_NEXT" \
-            or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.SELECT_COLUMN_PREVIOUS" \
-            or self.event['EclipseCommand'] == "eventLogger.styledTextCommand.SELECT_LINE_UP" \
-            or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.lineEnd" \
-            or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.lineStart" \
-            or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.textStart" \
-            or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.wordNext" \
-            or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.goto.wordPrevious" \
-            or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.select.lineStart" \
-            or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.select.wordNext" \
-            or self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.select.wordPrevious":
-            # Keyboard commands for navigating text
+        elif ec == "eventLogger.styledTextCommand.COLUMN_NEXT":
+            # Using the keyboard
             self._draw_keyboard_move(xpos)
-        elif self.event['EclipseCommand'] == 'AUTOGEN:::org.eclipse.jdt.debug.CompilationUnitEditor.BreakpointRulerActions/org.eclipse.jdt.debug.ui.actions.ManageBreakpointRulerAction':
-            self._draw_breakpoint_ruler(xpos)
-        elif self.event['EclipseCommand'] == 'AUTOGEN:::org.eclipse.jdt.internal.ui.CompilationUnitEditor.ruler.actions/org.eclipse.jdt.internal.ui.javaeditor.JavaSelectRulerAction':
-            # Clicking on the left-hand editor gutter
+        elif ec == "eventLogger.styledTextCommand.COLUMN_PREVIOUS":
+            # Using the keyboard
+            self._draw_keyboard_move(xpos)
+        elif ec == "eventLogger.styledTextCommand.DELETE_PREVIOUS":
+            # Using the keyboard
+            self._draw_keyboard_move(xpos)
+        elif ec == "eventLogger.styledTextCommand.LINE_DOWN":
+            # Using the keyboard
+            self._draw_keyboard_move(xpos)
+        elif ec == "eventLogger.styledTextCommand.LINE_UP":
+            # Using the keyboard
+            self._draw_keyboard_move(xpos)
+        elif ec == "eventLogger.styledTextCommand.SELECT_COLUMN_NEXT":
+            # Using the keyboard
+            self._draw_keyboard_move(xpos)
+        elif ec == "eventLogger.styledTextCommand.SELECT_COLUMN_PREVIOUS":
+            # Using the keyboard
+            self._draw_keyboard_move(xpos)
+        elif ec == "eventLogger.styledTextCommand.SELECT_LINE_UP":
+            # Using the keyboard
+            self._draw_keyboard_move(xpos)
+        elif ec == "org.eclipse.debug.ui.commands.DebugLast":
+            # Debuggung, run the program in debug mode
+            self._draw_run(xpos)
+        elif ec == "org.eclipse.debug.ui.commands.Resume":
+            self._draw_debugging(xpos)
+        elif ec == "org.eclipse.debug.ui.commands.RunLast":
+            self._draw_run(xpos)
+        elif ec == "org.eclipse.debug.ui.commands.StepInto":
+            self._draw_debugging(xpos)
+        elif ec == "org.eclipse.debug.ui.commands.StepOver":
+            self._draw_debugging(xpos)
+        elif ec == "org.eclipse.debug.ui.commands.StepReturn":
+            self._draw_debugging(xpos)
+        elif ec == "org.eclipse.debug.ui.commands.Terminate":
+            self._draw_terminate(xpos)
+        elif ec == "org.eclipse.debug.ui.commands.eof":
+            # Some kind of keyboard command
             pass
-        elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.JavaPerspective':
-            self._draw_java_perspective(xpos)
-        elif self.event['EclipseCommand'] == 'org.eclipse.ui.perspectives.showPerspective':
-            # This overlaps with JavaPerspective
+        elif ec == "org.eclipse.jdt.ui.JavaPerspective":
+            # Change to the Java Perspective
+            self._draw_debugging(xpos)
+        elif ec == "org.eclipse.jdt.ui.edit.text.java.gotoBreadcrumb":
+            # The breadcrumbs outlining a file path
             pass
-        elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.edit.text.java.open.call.hierarchy':
+        elif ec == "org.eclipse.jdt.ui.edit.text.java.open.call.hierarchy":
             self._draw_call_hierarchy(xpos)
-        elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.navigate.open.type.in.hierarchy':
+        elif ec == "org.eclipse.jdt.ui.edit.text.java.open.editor":
+            # Opens an editor in a special way
+            self._draw_open(xpos)
+        elif ec == "org.eclipse.jdt.ui.edit.text.java.organize.imports":
+            # Organizing the import statements of the file
+            pass
+        elif ec == "org.eclipse.jdt.ui.edit.text.java.search.declarations.in.project":
+            self._draw_search_declarations(xpos)
+        elif ec == "org.eclipse.jdt.ui.edit.text.java.search.declarations.in.workspace":
+            self._draw_search_declarations(xpos)
+        elif ec == "org.eclipse.jdt.ui.edit.text.java.search.references.in.project":
+            self._draw_search_references(xpos)
+        elif ec == "org.eclipse.jdt.ui.edit.text.java.search.references.in.workspace":
+            self._draw_search_references(xpos)
+        elif ec == "org.eclipse.jdt.ui.edit.text.java.show.outline":
+            self._draw_search_references(xpos)
+        elif ec == "org.eclipse.jdt.ui.navigate.open.type":
+            # Opening a type declaration in one of the explicit Dialogs
+            pass
+        elif ec == "org.eclipse.jdt.ui.navigate.open.type.in.hierarchy":
             self._draw_call_hierarchy(xpos)
-        elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.contentAssist.proposals":
-            self._draw_assist(xpos)
-        elif self.event['EclipseCommand'] == 'org.eclipse.jdt.ui.edit.text.java.open.editor':
-            # An open declaration or similar that requires going to another file
-            self._draw_open_editor(xpos)
-        elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.findNext":
-            self._draw_find_next(xpos)
-        elif self.event['EclipseCommand'] == "org.eclipse.search.ui.openFileSearchPage" \
-            or self.event['EclipseCommand'] == "org.eclipse.search.ui.openSearchDialog" \
-            or self.event['EclipseCommand'] == "org.eclipse.search.ui.performTextSearchFile" \
-            or self.event['EclipseCommand'] == "org.eclipse.search.ui.performTextSearchWorkspace" \
-            or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.declarations.in.project" \
-            or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.declarations.in.workspace" \
-            or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.references.in.project" \
-            or self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.search.references.in.workspace":
+        elif ec == "org.eclipse.search.ui.openFileSearchPage":
+            self._draw_search_file(xpos)
+        elif ec == "org.eclipse.search.ui.openSearchDialog":
             self._draw_find(xpos)
-        elif self.event['EclipseCommand'] == "org.eclipse.ui.edit.text.folding.collapse_all":
+        elif ec == "org.eclipse.search.ui.performTextSearchFile":
+            # Trying to open text search from menu (P10) and failing
+            self._draw_find(xpos)
+        elif ec == "org.eclipse.search.ui.performTextSearchWorkspace":
+            self._draw_find(xpos)
+        elif ec == "org.eclipse.ui.edit.findNext":
+            self._draw_find_next(xpos)
+        elif ec == "org.eclipse.ui.edit.selectAll":
+            # Select all text
             pass
-        elif self.event['EclipseCommand'] == "org.eclipse.ui.file.save":
+        elif ec == "org.eclipse.ui.edit.text.contentAssist.proposals":
+            # Suggestions for autocompletion
+            pass
+        elif ec == "org.eclipse.ui.edit.text.folding.collapse_all":
+            # Collapse folds
+            pass
+        elif ec == "org.eclipse.ui.edit.text.goto.lineEnd":
+            # Moving using keyboard commands
+            self._draw_keyboard_move(xpos)
+        elif ec == "org.eclipse.ui.edit.text.goto.lineStart":
+            # Moving using keyboard commands
+            self._draw_keyboard_move(xpos)
+        elif ec == "org.eclipse.ui.edit.text.goto.textStart":
+            # Moving using keyboard commands
+            self._draw_keyboard_move(xpos)
+        elif ec == "org.eclipse.ui.edit.text.goto.wordNext":
+            # Moving using keyboard commands
+            self._draw_keyboard_move(xpos)
+        elif ec == "org.eclipse.ui.edit.text.goto.wordPrevious":
+            # Moving using keyboard commands
+            self._draw_keyboard_move(xpos)
+        elif ec == "org.eclipse.ui.edit.text.select.lineStart":
+            # Moving using keyboard commands
+            self._draw_keyboard_move(xpos)
+        elif ec == "org.eclipse.ui.edit.text.select.wordNext":
+            # Moving using keyboard commands
+            self._draw_keyboard_move(xpos)
+        elif ec == "org.eclipse.ui.edit.text.select.wordPrevious":
+            # Moving using keyboard commands
+            self._draw_keyboard_move(xpos)
+        elif ec == "org.eclipse.ui.edit.text.showInformation":
+            # When JavaDoc tooltip is made editable
+            pass
+        elif ec == "org.eclipse.ui.file.properties":
+            # Looking at file properties
+            pass
+        elif ec == "org.eclipse.ui.file.refresh":
+            # Refreshing a file, kind of like open
+            self._draw_open(xpos)
+        elif ec == "org.eclipse.ui.file.save":
             self._draw_save(xpos)
-        elif self.event['EclipseCommand'] == "org.eclipse.ui.file.properties":
+        elif ec == "org.eclipse.ui.navigate.openResource":
+            # Using the Open Resource window
+            self._draw_open(xpos)
+        elif ec == "org.eclipse.ui.perspectives.showPerspective":
+            # Overlaps with Java perspective
             pass
-        elif self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.show.outline":
+        elif ec == "org.eclipse.ui.views.showView":
+            # Show a plugin view Eclipse
             pass
-        elif self.event['EclipseCommand'] == "org.eclipse.jdt.ui.edit.text.java.organize.imports":
+        elif ec == "org.eclipse.ui.window.newEditor":
+            # **Check this.
             pass
-        elif self.event['EclipseCommand'] == "org.eclipse.ui.navigate.openResource":
-            pass
-        elif self.event['EclipseCommand'] == "EclipseCommand org.eclipse.jdt.ui.navigate.open.type":
-            self._draw_default(xpos)
-        elif self.event['EclipseCommand'] == "EclipseCommand org.eclipse.ui.file.refresh":
-            self._draw_default(xpos)
-        elif self.event['EclipseCommand'] == "EclipseCommand org.eclipse.ui.window.newEditor":
-            self._draw_default(xpos)
         else:
-            self._draw_default(xpos)
+            print "We missed an event %s" % self.event
 
     def draw(self):
         xpos = Timeline.calculate_x_position(self.start_time, self.event['Time'])
 
         if self.event['Command'] == 'FileOpenCommand':
+            # Occurs whenever a 'file is brought into focus'. Ex: Opening files, switching tabs, closing other tabs, etc.
             self._draw_open(xpos)
         elif self.event['Command'] == 'SelectTextCommand':
+            # When user selects/highlights text
             self._draw_select(xpos)
         elif self.event['Command'] == 'MoveCaretCommand':
+            # When the user moves the editor caret
             # self._draw_move(xpos)
             pass
         elif self.event['Command'] == 'CopyCommand' \
             or self.event['Command'] == 'CutCommand' \
             or self.event['Command'] == 'PasteCommand':
+            # Cut, copy, paste
             pass
         elif self.event['Command'] == 'RunCommand':
+            # Runs program in Eclipse
             self._draw_run(xpos)
         elif self.event['Command'] == 'Insert' \
             or self.event['Command'] == 'Delete' \
             or self.event['Command'] == 'Replace' \
             or self.event['Command'] == 'UndoCommand':
+            # Inserting, deleting, or replacing data. Also undo.
             self._draw_edit(xpos)
         elif self.event['Command'] == 'InsertStringCommand':
             # This overlaps with 'Insert'
             pass
         elif self.event['Command'] == 'FindCommand':
+            # Using one kind of 'find', not exactly sure which one
             self._draw_find(xpos)
         elif self.event['Command'] == 'AssistCommand':
-            self._draw_assist(xpos)
+            # Assistance when editing files, the AutoComplete in Eclipse
+            pass
         elif self.event['Command'] == 'EclipseCommand':
+            # This brings ups to a set of other events, which are described above
             self._eclipseCommand(xpos)          
         else:
-            print self.event['Command']
             self._draw_default(xpos)
 
 
@@ -572,7 +681,7 @@ class Timeline:
     X_OFFSET = 80
     Y_OFFSET = 16
 
-    CHART_HEIGHT = 60
+    CHART_HEIGHT = 220
     METHOD_LANES = 19
     METHOD_LANE_HEIGHT = 10
     METHOD_HEIGHT = METHOD_LANES * METHOD_LANE_HEIGHT
@@ -589,7 +698,7 @@ class Timeline:
         self.coded_events = codedevents_list
         self.commands = commands_list
         self.pid = pid
-        self.svg_timeline = svgwrite.Drawing(filename = os.path.join(Timeline.OUTPUT_DIR, "%02d.svg" % pid), size=("2220px", "290px"))
+        self.svg_timeline = svgwrite.Drawing(filename = os.path.join(Timeline.OUTPUT_DIR, "%02d.svg" % pid), size=("2220px", "520px"))
 
         self.start_time = self.coded_events[0]['Time']
 
@@ -643,7 +752,7 @@ class Timeline:
     def _draw_overlap(self, xpos):
         self.svg_timeline.add(self.svg_timeline.line(
                 start=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET),
-                end=(xpos + Timeline.X_OFFSET, 5 + Timeline.Y_OFFSET)).
+                end=(xpos + Timeline.X_OFFSET, -5 + Timeline.Y_OFFSET)).
                 stroke(color="black", width=1, opacity=1.0))
 
     def _draw_command_events(self):
