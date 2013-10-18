@@ -77,14 +77,15 @@ class CodedEvent:
 		fields = ['Index',
 			'Time',
 			'Transcription',
-			'Foraging',
-			'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
+			'Foraging', 'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3', # Foraging
 			'Forks',
 			'LearningDoing',
-			'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging',
+			'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging', # Co-occurrences
 			'Retrospective fork',
-			'Retrospective quote',
-			'Retrospective matches goal', 'Retrospective during foraging']
+			'Number of Forks', 'Retrospective quote',
+			'Retrospective Category',
+			'Retrospective co-occurences with start/end', 'Retrospective co-occurrences with foraging',
+			'Debugging Action', 'Debugging Action Notes']
 		line_data = line.split('\t')
 
 		self.record = None
@@ -105,6 +106,9 @@ class CodedEvent:
 					self.record['Forks'] = 0
 
 				self.record['Foraging'] = self._convert_yesno_to_boolean(self.record, 'Foraging')
+				self.record['Start'] = self._convert_yesno_to_boolean(self.record, 'Start')
+				self.record['End'] = self._convert_yesno_to_boolean(self.record, 'End')
+				self.record['Ongoing'] = self._convert_yesno_to_boolean(self.record, 'Ongoing')
 				self.record['LearningDoing'] = self.record['LearningDoing'].upper()
 
 				try:
@@ -121,15 +125,19 @@ class CodedEvent:
 			self.valid = False
 
 	def _remove_unused_keys(self):
-		keys_to_delete = ['Transcription', 'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
-			'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging',
+		keys_to_delete = ['Transcription',
+			'Code1', 'Code2', 'Code3', # Foraging
+			'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging', # Co-occurrences (not needed in a database)
 			'Retrospective quote',
-			'Retrospective matches goal', 'Retrospective during foraging']
+			'Retrospective Category',
+			'Retrospective co-occurences with start/end', 'Retrospective co-occurrences with foraging',
+			'Misc AJ', 'Misc AK', # Ignore
+			'Debugging Action', 'Debugging Action Notes']
 		for k in keys_to_delete:
 			self.record.pop(k, None)
 
 	def _convert_yesno_to_boolean(self, record, key):
-		if record[key].lower() == 'y' or record[key] == '1':
+		if record[key].lower() == 'y' or record[key] >= '1':
 			return True
 		elif record[key] == '' or record[key].lower() == 'n' or record[key] == '0':
 			return False
