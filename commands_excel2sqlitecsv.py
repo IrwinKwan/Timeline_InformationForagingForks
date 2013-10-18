@@ -11,7 +11,7 @@ def export_sqlite_csv(p, events):
 
 
 if __name__== "__main__":
-	participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12] # P11 has incomplete commands data
+	participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 	# participants = [2]
 
 	for p in participants:
