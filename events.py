@@ -4,6 +4,11 @@ import os
 from collections import OrderedDict
 from datetime import time, datetime, date
 
+
+class ForkException(Exception):
+    pass
+
+
 class VideoTime:
 	@staticmethod
 	def convert_to_timestamp(video_time_stamp):
@@ -74,43 +79,63 @@ class CodeError(Exception):
 
 class CodedEvent:
 	def __init__(self, line):
-		fields = ['Index',
+		# A list of every field in the MergedCoding spreadsheet, left-to-right.
+		fields = [
+			'Index',
 			'Time',
 			'Transcription',
+			'Forks David', 'Forks Charles', 'Forks Final', 'Forks Agree?', 'Forks Fork?', 'Forks IRR', 'Fork Description',
+			'Foraging', 'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
+			'Coded Fork',
+			'LearningDoing', 'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging',
+			'Retrospective Oracle Charles',
+            'Retrospective fork',
+			'Retrospective fork number',
+			'Retrospective Quote Amber',
+			'Retrospective Insight Quote',
+			'Category?', 'Category Tag',
+			'Retrospective matches goal', 'Retrospective during foraging',
+            'Fork to Foraging Action', 'Fork to Foraging Note',
+			'Fork to Foraging David', 'Fork to Foraging Austin', 'Fork to Foraging', 'Fork to Foraging Agree?', 'Fork to Foraging Notes',
+			'Foraging Success David', 'Foraging Success Irwin', 'Foraging Success', 'Foraging Success Agree?', 'Foraging Success Notes',
+			'Post-fork navigation'
+			]
+		self.keys_to_keep = [
+			'Index',
+			'Time',
 			'Foraging',
-			'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
-			'Forks',
-			'LearningDoing',
-			'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging',
+			'Start',
+			'End',
+			'Ongoing',
+			'Coded Fork',
 			'Retrospective fork',
-			'Retrospective quote',
-			'Retrospective matches goal', 'Retrospective during foraging']
+			'Fork to Foraging',
+			'Foraging Success',
+			'Post-fork navigation'
+			]
 		line_data = line.split('\t')
 
 		self.record = None
 		if self._is_coded_row(line_data):
 			self.valid = True
 			
-			self.record = OrderedDict(zip(fields, line_data))
-			self._remove_unused_keys()
+			initial_record = OrderedDict(zip(fields, line_data))
+			self.record = self._remove_unused_keys(initial_record)
 
 			try:
 				self.record['Index'] = int(self.record['Index'])
 				self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
 
 				try:
-					self.record['Forks'] = int(self.record['Forks'])
+					self.record['Coded Fork'] = int(self.record['Coded Fork'])
 				except (KeyError, ValueError), e:
 					print "Exception at index %d, check if it's a missing fork? %s" % (self.record['Index'], str(e))
-					self.record['Forks'] = 0
+					self.record['Fork'] = 0
 
+				self.record['Fork'] = self._coded_as_fork(self.record['Coded Fork'], self.record['Retrospective fork'])
 				self.record['Foraging'] = self._convert_yesno_to_boolean(self.record, 'Foraging')
-				self.record['LearningDoing'] = self.record['LearningDoing'].upper()
 
-				try:
-					self.record['Retrospective fork']
-				except KeyError:
-					self.record['Retrospective fork'] = ''
+				self.record['Post-fork navigation'] = self.record['Post-fork navigation'].strip()
 
 			except (KeyError, IndexError), e:
 				print "Error at index %d: %s" % (self.record['Index'], str(e))
@@ -120,13 +145,17 @@ class CodedEvent:
 			self.record = None
 			self.valid = False
 
-	def _remove_unused_keys(self):
-		keys_to_delete = ['Transcription', 'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
-			'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging',
-			'Retrospective quote',
-			'Retrospective matches goal', 'Retrospective during foraging']
-		for k in keys_to_delete:
-			self.record.pop(k, None)
+	def _remove_unused_keys(self, initial_record):
+		filtered_record = OrderedDict()
+
+		for k in self.keys_to_keep:
+			try:
+				filtered_record[k] = initial_record[k]
+			except KeyError:
+				filtered_record[k] = ''
+
+
+		return filtered_record
 
 	def _convert_yesno_to_boolean(self, record, key):
 		if record[key].lower() == 'y' or record[key] == '1':
@@ -142,6 +171,27 @@ class CodedEvent:
 			return False
 		else:
 			return True
+
+	def _coded_as_fork(self, coded_fork, retrospective_fork):
+		"""How the fork is coded"""
+		if (coded_fork > 0 and retrospective_fork == 'y'):
+			#return "TrueFork" # True because everyone agreed that it's a fork
+			return "TrueFork"
+		elif (coded_fork == 0 and retrospective_fork == 'n'):
+			#return "HiddenFork" # Hidden because the participant thought it was a fork, but it was hidden from our coders
+			return "HiddenFork"
+		elif (coded_fork > 0 and retrospective_fork == 'n'):
+			#return "FakeFork" # Fake because the coders thought it was a fork, but it was fake as announced by the participant
+			return "FakeFork"
+		elif (coded_fork == 0 and retrospective_fork == 'y'):
+			#return "NotFork" # NotFork because everyone agreed that it isn't a fork
+			return "NotFork"
+		elif (coded_fork == 0 and not retrospective_fork):
+			return '' # No fork exists in this segment
+		elif (coded_fork > 0 and not retrospective_fork):
+			return 'UnknownFork' # No fork exists in this segment
+		else:
+			raise ForkException("Fork conditions appear incorrect. Please check it!\n\t%s, %s", coded_fork, retrospective_fork)
 
 	@property
 	def valid(self):
