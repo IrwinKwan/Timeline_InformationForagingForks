@@ -6,13 +6,13 @@ exports a tab file for .import into SQLite"""
 from events import DataLoader
 
 def export_sqlite_csv(p, events):
-	for ev in events:
-		print "%d\t%s" %(p, ev.tab())
+    for ev in events:
+        print "%d\t%s" %(p, ev.tab())
 
 
 if __name__== "__main__":
-	participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] # P11 has incomplete commands data
-	# participants = [2]
+    participants = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] # P11 has incomplete commands data
+    # participants = [2]
 
-	for p in participants:
-		export_sqlite_csv(p, DataLoader.load_codedevents(p))
+    for p in participants:
+        export_sqlite_csv(p, DataLoader.load_codedevents(p))
