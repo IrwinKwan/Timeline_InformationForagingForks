@@ -78,6 +78,7 @@ class CodeError(Exception):
 
 
 class CodedEvent:
+
     def __init__(self, line):
         # A list of every field in the MergedCoding spreadsheet, left-to-right.
         fields = [
@@ -213,6 +214,7 @@ class CodedEvent:
         r = self.record
         r['Time'] = "00:%s.%03d" % (str(r['Time'].strftime("%M:%S")), r['Time'].microsecond/1000)
         return ('\t'.join(str(v) for v in r.values()))
+
 
 class DataLoader:
     DIR = os.path.join("..", "timeline_forks_data", "data")
