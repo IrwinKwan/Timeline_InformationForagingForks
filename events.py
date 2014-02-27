@@ -108,7 +108,8 @@ class CodedEvent:
             'Start',
             'End',
             'Ongoing',
-            'Coded Fork',
+            'Forks',
+            'LearningDoing',
             'Retrospective fork',
             'Fork to Foraging',
             'Foraging Success',
@@ -128,18 +129,17 @@ class CodedEvent:
                 self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
 
                 try:
-                    self.record['Coded Fork'] = int(self.record['Coded Fork'])
+                    self.record['Forks'] = int(self.record['Forks'])
                 except (KeyError, ValueError), e:
-                    print "Exception at index %d, check if it's a missing fork? %s" % (self.record['Index'], str(e))
                     self.record['Fork'] = 0
 
-                self.record['Fork'] = self._coded_as_fork(self.record['Coded Fork'], self.record['Retrospective fork'])
+                self.record['Fork'] = self._coded_as_fork(self.record['Forks'], self.record['Retrospective fork'])
                 self.record['Foraging'] = self._convert_yesno_to_boolean(self.record, 'Foraging')
 
                 self.record['Post-fork navigation'] = self.record['Post-fork navigation'].strip()
 
             except (KeyError, IndexError), e:
-                print "Error at index %d: %s" % (self.record['Index'], str(e))
+                print "Key or Index Error at index %d: %s" % (self.record['Index'], str(e))
                 print self.record
 
         else:
@@ -216,8 +216,99 @@ class CodedEvent:
         return ('\t'.join(str(v) for v in r.values()))
 
 
+class Feature:
+    def __init__(self, line):
+        fields = ['Participant',
+            'Fork',
+            'Retro Time',
+            'Fork Success',
+            'Position',
+            'Proximity',
+            'Familiarity',
+            'JEdit Source',
+            'Method arguments/return type',
+            'Size of code',
+            'Domain Text',
+            'GUI Text',
+            'Contrast',
+            'Synonyms',
+            'Antonyms',
+            'Level of Abstraction',
+            'Comments',
+            'File Type',
+            'Hardcoded Numbers',
+            'Values of Variables',
+            'Examples',
+            'Exception',
+            'External Doc',
+            'Unknown',
+            'Patch']
+        line_data = line.rstrip('\n').split('\t', len(fields))
+        self.record = OrderedDict(zip(fields, line_data))
+
+        try:
+            # Round off overlapping forks (ex: 11.1 rounds to 11)
+            self.record['Fork'] = int(float(self.record['Fork']))
+
+            features_list = self._copy_feature_types(fields, line_data)
+            self.record['FeatureType'] = [k for k, v in features_list.items() if v == 'y']
+
+        except ValueError, e:
+            print "ValueError at index %d: %s" % (self.record['CommandID'], str(e))
+            self.record['error'] = True
+
+    def _copy_feature_types(self, fields, line_data):
+        """This is a cheating method so I can save on program text size."""
+        f = fields[4:-1]
+        l = line_data[4:-1]
+        return OrderedDict(zip(f, l))
+
+    def _strip_quotes(self, field):
+        return field.rstrip('"').lstrip('"')
+
+    def __len__(self):
+        return len(self.record)
+
+    def __getitem__(self, key):
+        return self.record[key]
+
+    def __setitem__(self, key, value):
+        self.record[key] = value
+
+    def __contains__(self, key):
+        return key in self.record
+
+    def header(self):
+        return ('\t'.join(k for k in self.record.keys()))
+
+    def __str__(self):
+        return ('\t'.join(str(v) for v in self.record.values()))
+
+    def tab(self):
+        # Don't output the Line of Code. Also, strip today's date from the timestamp.
+        r = self.record
+        r['Time'] = "00:%s.%03d" % (str(r['Time'].strftime("%M:%S")), r['Time'].microsecond/1000)
+        return ('\t'.join(str(v) for v in r.values()[0:-1]))
+
 class DataLoader:
     DIR = os.path.join("..", "timeline_forks_data", "data")
+
+    @staticmethod
+    def line_matches_participant(line, p):
+        return int(line[ : line.index('\t') ].strip()) == p
+
+    @staticmethod
+    def load_feature_types(p):
+        filename = DataLoader.feature_types()
+        command_list = []
+        with open(filename) as f:
+            f.readline() # Read past header
+
+            for line in f:
+                if DataLoader.line_matches_participant(line, p):
+                    c = Feature(line)
+                    command_list.append(c)
+        return command_list
 
     @staticmethod
     def load_commands(p):
@@ -246,6 +337,10 @@ class DataLoader:
                     codedevent_list.append(ce)
 
         return codedevent_list
+
+    @staticmethod
+    def feature_types():
+        return os.path.join(DataLoader.DIR, "feature_types_matrix.txt")
 
     @staticmethod
     def commands(pid):
