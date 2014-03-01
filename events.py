@@ -87,7 +87,7 @@ class CodedEvent:
             'Transcription',
             'Forks David', 'Forks Charles', 'Forks Final', 'Forks Agree?', 'Forks Fork?', 'Forks IRR', 'Fork Description',
             'Foraging', 'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
-            'Coded Fork',
+            'Forks',
             'LearningDoing', 'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging',
             'Retrospective Oracle Charles',
             'Retrospective fork',
@@ -131,7 +131,13 @@ class CodedEvent:
                 try:
                     self.record['Forks'] = int(self.record['Forks'])
                 except (KeyError, ValueError), e:
-                    self.record['Fork'] = 0
+                    self.record['Forks'] = 0
+
+                try:
+                    if self.record['Retrospective fork'] == 'y' or self.record['Retrospective fork'] == 'n':
+                        self.record['Retrospective fork'] = self.record['Retrospective fork']
+                except (KeyError, ValueError), e:
+                    self.record['Retrospective fork'] = ''
 
                 self.record['Fork'] = self._coded_as_fork(self.record['Forks'], self.record['Retrospective fork'])
                 self.record['Foraging'] = self._convert_yesno_to_boolean(self.record, 'Foraging')
@@ -180,7 +186,7 @@ class CodedEvent:
             return "TrueFork"
         elif (coded_fork == 0 and retrospective_fork == 'n'):
             #return "HiddenFork" # Hidden because the participant thought it was a fork, but it was hidden from our coders
-            return "HiddenFork"
+            return "UndetectedFork"
         elif (coded_fork > 0 and retrospective_fork == 'n'):
             #return "FakeFork" # Fake because the coders thought it was a fork, but it was fake as announced by the participant
             return "FakeFork"
@@ -190,7 +196,7 @@ class CodedEvent:
         elif (coded_fork == 0 and not retrospective_fork):
             return '' # No fork exists in this segment
         elif (coded_fork > 0 and not retrospective_fork):
-            return 'UnknownFork' # No fork exists in this segment
+            return 'Unverified Fork' # No fork exists in this segment
         else:
             raise ForkException("Fork conditions appear incorrect. Please check it!\n\t%s, %s", coded_fork, retrospective_fork)
 
@@ -295,13 +301,17 @@ class DataLoader:
 
     @staticmethod
     def line_matches_participant(line, p):
-        return int(line[ : line.index('\t') ].strip()) == p
+        try:
+            return int(line[ : line.index('\t') ].strip()) == p
+        except:
+            return False
 
     @staticmethod
     def load_feature_types(p):
         filename = DataLoader.feature_types()
         command_list = []
         with open(filename) as f:
+            f.readline() # Read past header
             f.readline() # Read past header
 
             for line in f:

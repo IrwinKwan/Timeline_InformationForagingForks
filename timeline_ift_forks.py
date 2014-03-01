@@ -169,8 +169,9 @@ class Square:
         #if event['LearningDoing'] and not event['Forks']:
         #    raise CodeError('Coded Data error: learning/doing coded but the fork is not for index %i' % (event['Index']) )
 
-        self.fork = event['Forks']
+        self.fork = event['Fork']
         self.learning_or_doing = event['LearningDoing']
+        self.successful = event['Foraging Success']
 
     def _draw_text(self, xpos):
         size = "14"
@@ -178,15 +179,17 @@ class Square:
 
         fork_text = ''
 
-        if self.fork > 0 and self.retrospective == 'y':
+        if self.fork == "TrueFork":
             fork_text = 'f'
             style = self.svg_timeline.g(style='text-decoration:underline; font-weight:bold')
-        elif self.fork == 0 and self.retrospective.lower() == 'y':
-            fork_text = 'x'
-        elif self.fork > 0 and self.retrospective == 'n':
-            fork_text = 'x'
-        elif self.fork == 0 and self.retrospective.lower() == 'n':
+        elif self.fork == "HiddenFork":
             fork_text = 'f'
+        elif self.fork == "FakeFork":
+            fork_text = 'x'
+        elif self.fork == "NoFork":
+            fork_text = '_'
+        elif self.fork == "UnknownFork":
+            fork_text = '?'
 
         text = self.svg_timeline.text(
             fork_text,
@@ -206,10 +209,20 @@ class Square:
 
         fill = "white"
         opacity = "0.3"
+
         if self.foraging:
             fill = "beige"
             opacity = "0.7"
 
+        success_fill = "white"
+        if self.successful == "Successful":
+            success_fill = "palegreen"
+        elif self.successful == "Unsuccessful":
+            success_fill = "crimson"
+        elif self.successful.upper() == "NA":
+            success_fill = "gold"
+
+        # Foraging Background
         self.svg_timeline.add(self.svg_timeline.rect(
             insert=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET),
             size=(Timeline.SQUARE_WIDTH, Timeline.CHART_HEIGHT),
@@ -217,6 +230,15 @@ class Square:
             opacity=opacity,
             stroke_width="0"))
 
+        # Successful/Not Successful Background
+        self.svg_timeline.add(self.svg_timeline.rect(
+            insert=(xpos + Timeline.X_OFFSET, Timeline.CHART_HEIGHT - EventLine.HEIGHT * 2 + Timeline.Y_OFFSET),
+            size=(Timeline.SQUARE_WIDTH, EventLine.HEIGHT * 2),
+            fill=success_fill,
+            opacity=1.0,
+            stroke_width="0"))
+
+        # Fork Text
         self._draw_text(xpos)
 
 
@@ -256,21 +278,21 @@ class ForkLine:
     COLOR['Method arguments/return type'] = ('red', 70, 5)
     COLOR['Size of code'] = ('orange', 140, 6)
     COLOR['Domain Text'] = ('green', 140, 7)
-    COLOR['GUI Text'] = ('steelblue', 140, 9)
-    COLOR['Contrast'] = ('red', 140, 10)
-    COLOR['Synonyms'] = ('pink', 140, 11)
-    COLOR['Antonyms'] = ('green', 140, 12)
-    COLOR['Level of Abstraction'] = ('blue', 180, 13)
-    COLOR['Comments'] = ('deeppink', 180, 14)
-    COLOR['File Type'] = ('darkgreen', 200, 15)
-    COLOR['Hardcoded Numbers'] = ('olive', 210, 16)
-    COLOR['Values of Variables'] = ('darkolivegreen', 210, 17)
-    COLOR['Examples'] = ('olivedrab', 190, 18)
-    COLOR['Exception'] = ('greenyellow', 220, 19)
-    COLOR['External Doc'] = ('slateblue', 140, 20)
-    COLOR['Unknown'] = ('steelblue', 240, 21)
+    COLOR['GUI Text'] = ('steelblue', 140, 8)
+    COLOR['Contrast'] = ('red', 140, 9)
+    COLOR['Synonyms'] = ('pink', 140, 10)
+    COLOR['Antonyms'] = ('green', 140, 11)
+    COLOR['Level of Abstraction'] = ('blue', 180, 12)
+    COLOR['Comments'] = ('deeppink', 180, 13)
+    COLOR['File Type'] = ('darkgreen', 200, 14)
+    COLOR['Hardcoded Numbers'] = ('olive', 210, 15)
+    COLOR['Values of Variables'] = ('darkolivegreen', 210, 16)
+    COLOR['Examples'] = ('olivedrab', 190, 17)
+    COLOR['Exception'] = ('greenyellow', 220, 18)
+    COLOR['External Doc'] = ('slateblue', 140, 19)
+    COLOR['Unknown'] = ('steelblue', 240, 20)
 
-    COLOR['default'] = ('darkslategrey', 250, 22)
+    # COLOR['default'] = ('darkslategrey', 250, 21)
 
     def __init__(self, svg_timeline, event, start):
         self.svg_timeline = svg_timeline
@@ -667,6 +689,9 @@ class MethodBar:
 
     def _draw_bar(self, x_start):
         """Draws the elapsed time for visiting a method"""
+
+        self.background = "grey" # Overwrite the background to create a null color.
+
         duration = self.end['Time'] - self.start['Time']
         self.svg_timeline.add(self.svg_timeline.rect(
             insert=(x_start, Timeline.METHOD_LANE_HEIGHT * self.lane + Timeline.CHART_HEIGHT + Timeline.Y_OFFSET),
@@ -740,15 +765,18 @@ class Timeline:
     TIMELABEL = "%M:%S"
 
     def __init__(self, pid, codedevents_list, commands_list, feature_type_matrix):
+
         self.coded_events = codedevents_list
         self.commands = commands_list
         self.feature_type_matrix = feature_type_matrix
+
         self.pid = pid
         self.svg_timeline = svgwrite.Drawing(filename = os.path.join(Timeline.OUTPUT_DIR, "%02d-forks.svg" % pid), size=("2220px", "520px"))
 
         self.start_time = self.coded_events[0]['Time']
 
         self.visited_methods = VisitedMethods()
+
 
     @staticmethod
     def calculate_x_position(start_time, event_time):
@@ -766,9 +794,9 @@ class Timeline:
         else:
             return False
 
-    def _merge(self):
-        """Merges codedevents and commands into one list."""
-        self.events = [] # Keyed by index
+    def _aggregate(self):
+        """Aggregates some data from one data list into another."""
+        pass
 
     def __len__(self):
         return len(self.commands_list)
