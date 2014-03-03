@@ -77,6 +77,64 @@ class CodeError(Exception):
     pass
 
 
+class Fork:
+    def __init__(self, index, order, name, goal, success):
+        self.index = index
+        self.order = order
+        self.name = name
+        self.goal = goal
+        self.success = success
+
+    @property
+    def index(self):
+        return self.index
+
+    @index.setter
+    def index(self, index):
+        self._index = int(index)
+
+    @property
+    def order(self):
+        return self.order
+
+    @order.setter
+    def order(self, order):
+        self._order = int(order)
+
+    @property
+    def name(self):
+        return self.name
+
+    @name.setter
+    def name(self, name):
+        if name == "ERROR":
+            raise ForkException("Fork Type field is an error.")
+        else:
+            self._name = name
+
+    @property
+    def success(self):
+        return self.success
+
+    @success.setter
+    def success(self, success):
+        if self._success == 'Unsuccessful':
+            self._success = False
+        elif self._success == 'Successful':
+            self._success = True
+        else:
+            raise ForkException("Fork Success field isn't 'Successful' or 'Unsuccessful'")
+
+    @property
+    def goal(self):
+        return self.goal
+
+    @goal.setter
+    def goal(self, goal):
+        self._goal = goal
+
+
+
 class CodedEvent:
 
     def __init__(self, line):
@@ -85,21 +143,17 @@ class CodedEvent:
             'Index',
             'Time',
             'Transcription',
-            'Forks David', 'Forks Charles', 'Forks Final', 'Forks Agree?', 'Forks Fork?', 'Forks IRR', 'Fork Description',
-            'Foraging', 'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
+            'Foraging',
+            'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
             'Forks',
-            'LearningDoing', 'Fork matches goal', 'Fork during foraging', 'Fork during non-foraging',
-            'Retrospective Oracle Charles',
+            'Fork Description',
             'Retrospective fork',
-            'Retrospective fork number',
-            'Retrospective Quote Amber',
-            'Retrospective Insight Quote',
-            'Category?', 'Category Tag',
-            'Retrospective matches goal', 'Retrospective during foraging',
-            'Fork to Foraging Action', 'Fork to Foraging Note',
-            'Fork to Foraging David', 'Fork to Foraging Austin', 'Fork to Foraging', 'Fork to Foraging Agree?', 'Fork to Foraging Notes',
-            'Foraging Success David', 'Foraging Success Irwin', 'Foraging Success', 'Foraging Success Agree?', 'Foraging Success Notes',
-            'Post-fork navigation'
+            'Retrospective fork agreement',
+            'Fork Names',
+            'Retrospective quote',
+            'Fork to Goal',
+            'Foraging Success',
+            'LearningDoing',
             ]
         self.keys_to_keep = [
             'Index',
@@ -109,11 +163,10 @@ class CodedEvent:
             'End',
             'Ongoing',
             'Forks',
+            'Fork Names',
             'LearningDoing',
-            'Retrospective fork',
-            'Fork to Foraging',
-            'Foraging Success',
-            'Post-fork navigation'
+            'Fork to Goal',
+            'Foraging Success'
             ]
         line_data = line.split('\t')
 
@@ -122,27 +175,16 @@ class CodedEvent:
             self.valid = True
 
             initial_record = OrderedDict(zip(fields, line_data))
+
             self.record = self._remove_unused_keys(initial_record)
 
             try:
                 self.record['Index'] = int(self.record['Index'])
                 self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
-
-                try:
-                    self.record['Forks'] = int(self.record['Forks'])
-                except (KeyError, ValueError), e:
-                    self.record['Forks'] = 0
-
-                try:
-                    if self.record['Retrospective fork'] == 'y' or self.record['Retrospective fork'] == 'n':
-                        self.record['Retrospective fork'] = self.record['Retrospective fork']
-                except (KeyError, ValueError), e:
-                    self.record['Retrospective fork'] = ''
-
-                self.record['Fork'] = self._coded_as_fork(self.record['Forks'], self.record['Retrospective fork'])
                 self.record['Foraging'] = self._convert_yesno_to_boolean(self.record, 'Foraging')
+                self.record['Forks'] = self._unpack_fork_attributes(self.record)
+                self.record['LearningDoing'] = self.record['LearningDoing'].strip()
 
-                self.record['Post-fork navigation'] = self.record['Post-fork navigation'].strip()
 
             except (KeyError, IndexError), e:
                 print "Key or Index Error at index %d: %s" % (self.record['Index'], str(e))
@@ -161,7 +203,6 @@ class CodedEvent:
             except KeyError:
                 filtered_record[k] = ''
 
-
         return filtered_record
 
     def _convert_yesno_to_boolean(self, record, key):
@@ -179,26 +220,22 @@ class CodedEvent:
         else:
             return True
 
-    def _coded_as_fork(self, coded_fork, retrospective_fork):
-        """How the fork is coded"""
-        if (coded_fork > 0 and retrospective_fork == 'y'):
-            #return "TrueFork" # True because everyone agreed that it's a fork
-            return "TrueFork"
-        elif (coded_fork == 0 and retrospective_fork == 'n'):
-            #return "HiddenFork" # Hidden because the participant thought it was a fork, but it was hidden from our coders
-            return "UndetectedFork"
-        elif (coded_fork > 0 and retrospective_fork == 'n'):
-            #return "FakeFork" # Fake because the coders thought it was a fork, but it was fake as announced by the participant
-            return "FakeFork"
-        elif (coded_fork == 0 and retrospective_fork == 'y'):
-            #return "NotFork" # NotFork because everyone agreed that it isn't a fork
-            return "NotFork"
-        elif (coded_fork == 0 and not retrospective_fork):
-            return '' # No fork exists in this segment
-        elif (coded_fork > 0 and not retrospective_fork):
-            return 'Unverified Fork' # No fork exists in this segment
-        else:
-            raise ForkException("Fork conditions appear incorrect. Please check it!\n\t%s, %s", coded_fork, retrospective_fork)
+    def _unpack_fork_attributes(self, record):
+        """Associate fork data with a fork in thie segment.
+        The attributes for a fork are the Fork Type (ex: Verified), Success, and the Goal."""
+
+        fork = []
+        if int(record['Forks']) > 0:
+
+            fork_names = [ r.strip() for r in record['Fork Names'].split(',') ]
+            fork_goals = [ r.strip() for r in record['Fork to Goal'].split(',') ]
+            fork_success = [ r.strip() for r in record['Foraging Success'].split(',') ]
+
+            for i in range(0, len(fork_names)):
+                fork.append(Fork(record['Index'], i + 1, fork_names[i], fork_goals[i], fork_success[i]))
+
+        return fork
+
 
     @property
     def valid(self):

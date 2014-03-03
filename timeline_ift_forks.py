@@ -169,27 +169,36 @@ class Square:
         #if event['LearningDoing'] and not event['Forks']:
         #    raise CodeError('Coded Data error: learning/doing coded but the fork is not for index %i' % (event['Index']) )
 
-        self.fork = event['Fork']
+        self.forks = event['Forks']
         self.learning_or_doing = event['LearningDoing']
         self.successful = event['Foraging Success']
 
     def _draw_text(self, xpos):
         size = "14"
         style = None
-
         fork_text = ''
 
-        if self.fork == "TrueFork":
-            fork_text = 'f'
-            style = self.svg_timeline.g(style='text-decoration:underline; font-weight:bold')
-        elif self.fork == "HiddenFork":
-            fork_text = 'f'
-        elif self.fork == "FakeFork":
-            fork_text = 'x'
-        elif self.fork == "NoFork":
-            fork_text = '_'
-        elif self.fork == "UnknownFork":
-            fork_text = '?'
+        try:
+            fork_type = self.forks[0].name
+
+            # Since we can't really plot two forks at the same spot on the graph, plot the first one only.
+            if fork_type == "Verified":
+                fork_text = 'v'
+                style = self.svg_timeline.g(style='text-decoration:underline; font-weight:bold')
+            elif fork_type == "Undetected":
+                fork_text = 'u'
+            elif fork_type == "False":
+                fork_text = '_'
+            elif fork_type == "No":
+                fork_text = ''
+            elif fork_type == "Unverified":
+                fork_text = "uv"
+            elif fork_type == "No Data":
+                fork_text = ''
+            elif fork_type == "ERROR":
+                fork_text = '!!'
+        except IndexError:
+            fork_type = ''
 
         text = self.svg_timeline.text(
             fork_text,
@@ -198,6 +207,7 @@ class Square:
             font_size=size,
             text_anchor="middle",
             dy="5")
+
         if style:
             style.add(text)
             self.svg_timeline.add(style)
@@ -837,7 +847,7 @@ class Timeline:
         event_queue = {}
         for event in self.commands:
 
-            event_time = self._lookup_fork_time(event['Fork'])
+            event_time = self._lookup_fork_time(event['Forks'])
             try:
                 xpos = Timeline.calculate_x_position(self.start_time, event[''])
                 if xpos in event_queue:
