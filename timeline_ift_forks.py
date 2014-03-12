@@ -43,116 +43,6 @@ from collections import OrderedDict
 
 from events import CodeError, DataLoader
 
-class TimelineDecorations:
-    def __init__(self, svg_timeline, coded_events, participant):
-        self.svg_timeline = svg_timeline
-        self.coded_events = coded_events
-        self.participant = participant
-
-    def draw(self):
-        self._draw_x_axis()
-        self._draw_x_axis(30)
-        self._draw_x_axis(50)
-        self._draw_x_axis(110)
-        self._draw_x_axis(130)
-        self._draw_x_axis(180)
-        self._draw_x_axis(200)
-        self._draw_x_axis(Timeline.CHART_HEIGHT)     
-        self._draw_x_axis(Timeline.HEIGHT)
-        self._draw_x_tickmarks()
-        self._draw_x_labels()
-        self._draw_participant_label()
-
-    def _calculate_timeline_duration(self, events):
-        start = events[0]
-        end = events[-1]
-        start_time = start['Time']
-        end_time = end['Time'] + timedelta(0, 29, 0, 999)
-        return end_time - start_time
-
-    def _draw_x_axis(self, ypos=0):
-        duration = self._calculate_timeline_duration(self.coded_events)
-
-        self.svg_timeline.add(self.svg_timeline.line(
-            start=(Timeline.X_OFFSET, Timeline.Y_OFFSET + ypos),
-            end=(Timeline.X_OFFSET + duration.total_seconds(), Timeline.Y_OFFSET + ypos)).
-            stroke(color='black', width=1))
-
-    def _draw_x_tickmarks(self):
-        duration = self._calculate_timeline_duration(self.coded_events)
-
-        alternate = 0
-        for xpos in range(0, int(ceil(duration.total_seconds())), Timeline.X_GAP):
-
-            tickmark = self.svg_timeline.line(
-                start=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET), \
-                end=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET + Timeline.HEIGHT),
-                opacity="0.5") \
-                .stroke(color='black', width=1)
-
-            if alternate % 2:
-                tickmark.dasharray("3,1")
-
-            self.svg_timeline.add(tickmark)
-
-            alternate += 1
-
-    def _draw_sessiontime(self):
-        duration = self._calculate_timeline_duration(self.coded_events)
-        minute = 1
-        for xpos in range(0, int(ceil(duration.total_seconds())), Timeline.X_LABEL_GAP):
-
-            self.svg_timeline.add(self.svg_timeline.text(minute,
-                insert=(xpos + Timeline.X_OFFSET, 14),
-                font_family="sans-serif",
-                font_size="14"))
-            minute += 1
-
-    def _draw_videotime(self):
-        duration = self._calculate_timeline_duration(self.coded_events)
-
-        ce_index = 0
-        for xpos in range(0, int(ceil(duration.total_seconds())), Timeline.X_LABEL_GAP):
-            try:
-                self.svg_timeline.add(self.svg_timeline.text(self.coded_events[ce_index]['Time'].strftime(Timeline.TIMELABEL),
-                    insert=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET + Timeline.HEIGHT + 20),
-                    font_family="sans-serif",
-                    font_size="14"))
-            except IndexError:
-                pass
-
-            ce_index += 2
-
-    def _draw_x_labels(self):
-        self._draw_videotime()
-        self._draw_sessiontime()
-
-    def _draw_participant_label(self):
-        self.svg_timeline.add(self.svg_timeline.text("P%02d" % (self.participant),
-                insert=(0, Timeline.Y_OFFSET + Timeline.HEIGHT + 20),
-                font_family="sans-serif",
-                font_size="14"))
-
-    def draw_legend(self, legend_types):
-        legend = self.svg_timeline.text("",
-            insert=(0, Timeline.Y_OFFSET),
-            font_family="sans-serif",
-            text_anchor="end",
-            font_size="8")
-
-        startpos = Timeline.X_OFFSET - 2
-
-        if legend_types == 'EventLine':
-            for key, value in EventLine.COLOR.items():
-                legend.add(svgwrite.text.TSpan(key.replace("_", " ").capitalize(), insert=None, fill=value,
-                    x=[startpos], dy=[10]))
-        elif legend_types == 'FeatureType':
-            for key, value in ForkLine.COLOR.items():
-                legend.add(svgwrite.text.TSpan(key.replace("_", " ").capitalize(), insert=None, fill=value[0],
-                    x=[startpos], dy=[10]))
-
-        self.svg_timeline.add(legend)
-
 
 class Square:
     def __init__(self, svg_timeline, event):
@@ -160,22 +50,23 @@ class Square:
         self.svg_timeline = svg_timeline
         self.foraging = event['Foraging']
         self.index = event['Index']
-
-        try:
-            self.retrospective = event['Retrospective fork']
-        except:
-            self.retrospective = ''
-
-        #if event['LearningDoing'] and not event['Forks']:
-        #    raise CodeError('Coded Data error: learning/doing coded but the fork is not for index %i' % (event['Index']) )
-
         self.forks = event['Forks']
-        self.learning_or_doing = event['LearningDoing']
-        self.successful = event['Foraging Success']
 
-    def _draw_text(self, xpos):
-        size = "14"
-        style = None
+    def _success_fill(self):
+        successful = self.forks[0].success
+
+        if successful == 'NA':
+            success_fill = "gold"
+        elif successful == 'successful':
+            success_fill = "palegreen"
+        elif successful == 'unsuccessful':
+            success_fill = "orangered"
+        else:
+            success_fill = "white"
+
+        return success_fill
+
+    def _fork_text(self):
         fork_text = ''
 
         try:
@@ -192,16 +83,22 @@ class Square:
             elif fork_type == "No":
                 fork_text = ''
             elif fork_type == "Unverified":
-                fork_text = "uv"
+                fork_text = "~v"
             elif fork_type == "No Data":
                 fork_text = ''
             elif fork_type == "ERROR":
-                fork_text = '!!'
+                fork_text = '!'
         except IndexError:
             fork_type = ''
 
+        return fork_text
+
+    def _draw_text(self, xpos):
+        size = "14"
+        style = None
+
         text = self.svg_timeline.text(
-            fork_text,
+            self._fork_text(),
             insert=(xpos + Timeline.SQUARE_WIDTH/2 + Timeline.X_OFFSET, Timeline.CHART_HEIGHT - 10 + Timeline.Y_OFFSET),
             font_family="sans-serif",
             font_size=size,
@@ -224,14 +121,6 @@ class Square:
             fill = "beige"
             opacity = "0.7"
 
-        success_fill = "white"
-        if self.successful == "Successful":
-            success_fill = "palegreen"
-        elif self.successful == "Unsuccessful":
-            success_fill = "crimson"
-        elif self.successful.upper() == "NA":
-            success_fill = "gold"
-
         # Foraging Background
         self.svg_timeline.add(self.svg_timeline.rect(
             insert=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET),
@@ -244,7 +133,7 @@ class Square:
         self.svg_timeline.add(self.svg_timeline.rect(
             insert=(xpos + Timeline.X_OFFSET, Timeline.CHART_HEIGHT - EventLine.HEIGHT * 2 + Timeline.Y_OFFSET),
             size=(Timeline.SQUARE_WIDTH, EventLine.HEIGHT * 2),
-            fill=success_fill,
+            fill=self._success_fill(),
             opacity=1.0,
             stroke_width="0"))
 
@@ -255,25 +144,6 @@ class Square:
 
 class CommandTooSoonException(Exception):
     pass
-
-
-class EventViewProperty:
-    def __init__(self, color, top, height, css_class):
-        self.color = color
-        self.top = top
-        self.bottom = bottom
-        self.css_class = css_class
-
-
-class EventViewProperties:
-    def __init__(self):
-        self.event = OrderedDict()
-
-        self.event['open'] = EventView('maroon', -5, 10, 'open')
-        self.event['indigo'] = EventView('indigo', 30, 10, 'indigo')
-
-    def __getitem__(self, key):
-        return self.event[key]
 
 
 class ForkLine:
@@ -638,11 +508,12 @@ class MethodBar:
     # Threshold in seconds, if visits are less or equal to this value, don't draw it as visited.
     VISIT_THRESHOLD = 0.1 
 
-    def __init__(self, svg_timeline, event_start, timeline_start, visited_methods):
+    def __init__(self, svg_timeline, event_start, timeline_start, timeline_height, visited_methods):
         self.svg_timeline = svg_timeline
         self.start = event_start
         self.my_name = MethodBar.method_name(event_start)
         self.timeline_start = timeline_start
+        self.timeline_height = timeline_height
 
         self.visited_methods = visited_methods
         method_decorations = visited_methods.get(self.my_name)
@@ -689,10 +560,10 @@ class MethodBar:
     def _xstart(self):
         return Timeline.calculate_x_position(self.timeline_start, self.start['Time'])
 
-    def _draw_text(self, x_start):
+    def _text_exists(self, x_start):
         if not self.last_text:
             return True
-        elif (self.last_text + MethodBar.TEXT_WIDTH) < (x_start):
+        elif (self.last_text + MethodBar.TEXT_WIDTH) < x_start:
             return True
         else:
             return False
@@ -704,7 +575,7 @@ class MethodBar:
 
         duration = self.end['Time'] - self.start['Time']
         self.svg_timeline.add(self.svg_timeline.rect(
-            insert=(x_start, Timeline.METHOD_LANE_HEIGHT * self.lane + Timeline.CHART_HEIGHT + Timeline.Y_OFFSET),
+            insert=(x_start, Timeline.METHOD_LANE_HEIGHT * self.lane + self.timeline_height + Timeline.Y_OFFSET),
             size=(duration.total_seconds(), Timeline.METHOD_LANE_HEIGHT),
             fill=self.background,
             opacity="0.4",
@@ -719,7 +590,7 @@ class MethodBar:
         self.last_text = x_start
         self.svg_timeline.add(self.svg_timeline.text(
             self.my_name,
-            insert=(x_start, 2 + Timeline.CHART_HEIGHT + Timeline.METHOD_LANE_HEIGHT * self.lane + Timeline.Y_OFFSET),
+            insert=(x_start, 2 + self.timeline_height + Timeline.METHOD_LANE_HEIGHT * self.lane + Timeline.Y_OFFSET),
             font_family="sans-serif",
             font_size="8",
             text_anchor="start",
@@ -739,12 +610,238 @@ class MethodBar:
         duration = self.end['Time'] - self.start['Time']
         if duration.total_seconds() > MethodBar.VISIT_THRESHOLD:
             self._draw_bar(x_start)
-            if self._draw_text(x_start):
+            if self._text_exists(x_start):
                 self._draw_method(x_start)
 
             self.visited_methods.update_last_text(self.my_name, self.last_text)
 
         return self.visited_methods
+
+
+class PatchLaneException(Exception):
+    pass
+
+
+class PatchBar(object):
+    """Method cloned, but not yet adapted."""
+    TEXT_WIDTH = 120
+
+    COLORS = {
+        'Package Explorer': 'cyan',
+        'Editor': 'skyblue',
+        'Stack Trace': 'lightsalmon',
+        'Search Results': 'peachpuff',
+        'Variables': 'springgreen',
+        'Outline': 'lightgreen',
+        'Bug Report': 'olive',
+        'Firefox Web Browser': 'darkseagreen',
+        'Misc': 'lightgray'
+    }
+
+    def __init__(self, svg_timeline, fork_event, lane, timeline_start, timeline_height):
+        self.svg_timeline = svg_timeline
+
+        self.label = fork_event["Patch"]
+        self._lane = lane
+
+        self._start = fork_event["Start"]
+        self._end = fork_event["End"]
+
+        self._timeline_start = timeline_start
+        self._timeline_height = timeline_height
+
+        self._y = self._timeline_height + Timeline.METHOD_LANE_HEIGHT * self._lane + Timeline.Y_OFFSET
+
+    @property
+    def label(self):
+        return self._patch_label
+
+    @label.setter
+    def label(self, patch):
+        patch_name = patch.split(":")
+        self._patch_label = patch_name[0].strip()
+
+    @property
+    def color(self):
+        try:
+            return PatchBar.COLORS[self.label]
+        except:
+            return PatchBar.COLORS['Misc']
+
+    @property
+    def xstart(self):
+        return Timeline.calculate_x_position(self._timeline_start, self._start)
+
+    def _svg_bar(self):
+        """Draws the elapsed time bar"""
+        x_start = self.xstart + Timeline.X_OFFSET
+
+        duration = self._end - self._start
+        self.svg_timeline.add(self.svg_timeline.rect(
+            insert=(x_start, self._y),
+            size=(duration.total_seconds(), Timeline.METHOD_LANE_HEIGHT),
+            fill=self.color,
+            opacity="0.4",
+            stroke_width="0"))
+
+    def _svg_text(self):
+        """Draws the patch label"""
+        x_start = self.xstart + Timeline.X_OFFSET
+        textcolor = "black"
+
+        self.svg_timeline.add(self.svg_timeline.text(
+            self.label,
+            insert=(x_start, 2 + self._y),
+            font_family="sans-serif",
+            font_size="8",
+            text_anchor="start",
+            fill=textcolor,
+            dy="5"))
+
+    def draw(self):
+        """Draws the method's bar from start (stored in the instance) to the end"""
+        self._svg_text()
+        self._svg_bar()
+
+
+class FeatureTypesChart(object):
+    @staticmethod
+    def draw_legend(legend):
+        startpos = Timeline.X_OFFSET - 2
+        for key, value in ForkLine.COLOR.items():
+            legend.add(svgwrite.text.TSpan(key.replace("_", " ").capitalize(), insert=None, fill=value[0],
+                x=[startpos], dy=[10]))
+
+        return legend
+
+
+class EventLinesChart(object):
+    @staticmethod
+    def draw_legend(legend):
+        startpos = Timeline.X_OFFSET - 2
+        for key, value in EventLine.COLOR.items():
+                legend.add(svgwrite.text.TSpan(key.replace("_", " ").capitalize(), insert=None, fill=value,
+                    x=[startpos], dy=[10]))
+        return legend
+
+
+class TimelineDecorations:
+    def __init__(self, svg_timeline, coded_events, participant):
+        self.svg_timeline = svg_timeline
+        self.coded_events = coded_events
+        self.participant = participant
+
+    def draw(self):
+
+        self._draw_x_axis() # The top line
+
+        # These are divisions for EventLine.
+        # self._draw_x_axis(30)
+        # self._draw_x_axis(50)
+        # self._draw_x_axis(110)
+        # self._draw_x_axis(130)
+        # self._draw_x_axis(180)
+        # self._draw_x_axis(200)
+
+        # The line above the Success/Not Success section
+        self._draw_x_axis(Timeline.CHART_HEIGHT - 2 * EventLine.HEIGHT)
+
+        # THe line above the Patches
+        self._draw_x_axis(Timeline.CHART_HEIGHT)
+
+        # THe line above the methods
+        self._draw_x_axis(Timeline.CHART_AND_PATCH_HEIGHT)
+
+        # The bottom line
+        self._draw_x_axis(Timeline.HEIGHT)
+
+        self._draw_x_tickmarks()
+        self._draw_x_labels()
+        self._draw_participant_label()
+
+    def _calculate_timeline_duration(self, events):
+        start = events[0]
+        end = events[-1]
+        start_time = start['Time']
+        end_time = end['Time'] + timedelta(0, 29, 0, 999)
+        return end_time - start_time
+
+    def _draw_x_axis(self, ypos=0):
+        duration = self._calculate_timeline_duration(self.coded_events)
+
+        self.svg_timeline.add(self.svg_timeline.line(
+            start=(Timeline.X_OFFSET, Timeline.Y_OFFSET + ypos),
+            end=(Timeline.X_OFFSET + duration.total_seconds(), Timeline.Y_OFFSET + ypos)).
+            stroke(color='black', width=1))
+
+    def _draw_x_tickmarks(self):
+        duration = self._calculate_timeline_duration(self.coded_events)
+
+        alternate = 0
+        for xpos in range(0, int(ceil(duration.total_seconds())), Timeline.X_GAP):
+
+            tickmark = self.svg_timeline.line(
+                start=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET), \
+                end=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET + Timeline.HEIGHT),
+                opacity="0.5") \
+                .stroke(color='black', width=1)
+
+            if alternate % 2:
+                tickmark.dasharray("3,1")
+
+            self.svg_timeline.add(tickmark)
+
+            alternate += 1
+
+    def _draw_sessiontime(self):
+        duration = self._calculate_timeline_duration(self.coded_events)
+        minute = 1
+        for xpos in range(0, int(ceil(duration.total_seconds())), Timeline.X_LABEL_GAP):
+
+            self.svg_timeline.add(self.svg_timeline.text(minute,
+                insert=(xpos + Timeline.X_OFFSET, 14),
+                font_family="sans-serif",
+                font_size="14"))
+            minute += 1
+
+    def _draw_videotime(self):
+        duration = self._calculate_timeline_duration(self.coded_events)
+
+        ce_index = 0
+        for xpos in range(0, int(ceil(duration.total_seconds())), Timeline.X_LABEL_GAP):
+            try:
+                self.svg_timeline.add(self.svg_timeline.text(self.coded_events[ce_index]['Time'].strftime(Timeline.TIMELABEL),
+                    insert=(xpos + Timeline.X_OFFSET, Timeline.Y_OFFSET + Timeline.HEIGHT + 20),
+                    font_family="sans-serif",
+                    font_size="14"))
+            except IndexError:
+                pass
+
+            ce_index += 2
+
+    def _draw_x_labels(self):
+        self._draw_videotime()
+        self._draw_sessiontime()
+
+    def _draw_participant_label(self):
+        self.svg_timeline.add(self.svg_timeline.text("P%02d" % (self.participant),
+            insert=(0, Timeline.Y_OFFSET + Timeline.HEIGHT + 20),
+            font_family="sans-serif",
+            font_size="14"))
+
+    def draw_legend(self, legend_types):
+        legend = self.svg_timeline.text("",
+            insert=(0, Timeline.Y_OFFSET),
+            font_family="sans-serif",
+            text_anchor="end",
+            font_size="8")
+
+        if legend_types == 'EventLine':
+            legend = EventLinesChart.draw_legend(legend)
+        elif legend_types == 'FeatureType':
+            legend = FeatureTypesChart.draw_legend(legend)
+
+        self.svg_timeline.add(legend)
 
 
 class Timeline:
@@ -761,13 +858,20 @@ class Timeline:
     X_OFFSET = 80
     Y_OFFSET = 16
 
-    CHART_HEIGHT = 220
+    CHART_HEIGHT = 220 # The height of the "main" area of the graph.
+
+    PATCH_LANES = 4
+    PATCH_LANE_HEIGHT = PATCH_LANES * EventLine.HEIGHT
+
     METHOD_LANES = 19
     METHOD_LANE_HEIGHT = 10
     METHOD_HEIGHT = METHOD_LANES * METHOD_LANE_HEIGHT
 
+    CHART_AND_PATCH_HEIGHT = CHART_HEIGHT + PATCH_LANE_HEIGHT # If we add more parts of the chart, it's going to need
+                                                              # refactoring so that we can add arbitrary sections.
+
     SQUARE_WIDTH = 30
-    HEIGHT = CHART_HEIGHT + METHOD_HEIGHT
+    HEIGHT = CHART_HEIGHT + PATCH_LANE_HEIGHT + METHOD_HEIGHT
 
     X_GAP = 30
     X_LABEL_GAP = 60
@@ -775,6 +879,9 @@ class Timeline:
     TIMELABEL = "%M:%S"
 
     def __init__(self, pid, codedevents_list, commands_list, feature_type_matrix):
+
+        # One day, break this chart into composable sections.
+        self.sections = []
 
         self.coded_events = codedevents_list
         self.commands = commands_list
@@ -864,6 +971,7 @@ class Timeline:
     def _draw_fork_events(self):
         event_queue = {}
         for fork_event in self.feature_type_matrix:
+
             event = fork_event
 
             try:
@@ -883,6 +991,14 @@ class Timeline:
             except CommandTooSoonException:
                 pass
 
+    def _draw_patches(self):
+        lane = 0
+        for fork_event in self.feature_type_matrix:
+            patch_bar = PatchBar(self.svg_timeline, fork_event, lane % Timeline.PATCH_LANES, self.start_time, Timeline.CHART_HEIGHT)
+            patch_bar.draw()
+            lane += 1
+
+
     def _event_at_session_start(self, event):
         ev_start_at_session = event
         ev_start_at_session['Time'] = self.start_time
@@ -890,21 +1006,21 @@ class Timeline:
 
     def _draw_methods(self):
         start_event = None
-        xpos = 0
+        #xpos = 0
         
         for event in self.commands:
             if 'error' not in event:
                 if self.before_start(event):
-                    start_event = MethodBar(self.svg_timeline, self._event_at_session_start(event), self.start_time, self.visited_methods)
+                    start_event = MethodBar(self.svg_timeline, self._event_at_session_start(event), self.start_time, Timeline.CHART_AND_PATCH_HEIGHT, self.visited_methods)
                 else:
                     if not start_event:
-                        start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
+                        start_event = MethodBar(self.svg_timeline, event, self.start_time, Timeline.CHART_AND_PATCH_HEIGHT, self.visited_methods)
 
                     if not start_event.same_method(event):
                         self.visited_methods = start_event.draw(event)
-                        start_event = MethodBar(self.svg_timeline, event, self.start_time, self.visited_methods)
+                        start_event = MethodBar(self.svg_timeline, event, self.start_time, Timeline.CHART_AND_PATCH_HEIGHT, self.visited_methods)
                     
-            xpos += Timeline.SQUARE_WIDTH
+            #xpos += Timeline.SQUARE_WIDTH
 
         # Draw the final event
         if 'error' not in event:
@@ -923,8 +1039,9 @@ class Timeline:
         """Converts the textual commands_list to a graphical timeline view in SVG."""
         self._draw_coded_events()
         #self._draw_command_events()
-        self._draw_methods()
         self._draw_fork_events()
+        self._draw_patches()
+        self._draw_methods()
         self._draw_timeline_decorations("FeatureType")
 
         self.svg_timeline.add_stylesheet("timeline_information_forks.css", title="ift_forks")

@@ -13,10 +13,14 @@ class VideoTime:
     @staticmethod
     def convert_to_timestamp(video_time_stamp):
         (minute, s) = video_time_stamp.split(':')
-        (second, millisecond) = s.split('.')
 
-        # Use today's date as a placeholder for creating a datetime object for time subtraction
-        return datetime.combine(date.today(), time(0, int(minute), int(second), int(millisecond) * 1000))
+        try:
+            (second, millisecond) = s.split('.')
+            # Use today's date as a placeholder for creating a datetime object for time subtraction
+            return datetime.combine(date.today(), time(0, int(minute), int(second), int(millisecond) * 1000))
+        except ValueError:
+            second = s
+            return datetime.combine(date.today(), time(0, int(minute), int(second), int(0) * 1000))
 
 
 class Command:
@@ -77,8 +81,9 @@ class CodeError(Exception):
     pass
 
 
-class Fork:
+class Fork(object):
     def __init__(self, index, order, name, goal, success):
+
         self.index = index
         self.order = order
         self.name = name
@@ -87,7 +92,7 @@ class Fork:
 
     @property
     def index(self):
-        return self.index
+        return self._index
 
     @index.setter
     def index(self, index):
@@ -95,7 +100,7 @@ class Fork:
 
     @property
     def order(self):
-        return self.order
+        return self._order
 
     @order.setter
     def order(self, order):
@@ -103,7 +108,7 @@ class Fork:
 
     @property
     def name(self):
-        return self.name
+        return self._name
 
     @name.setter
     def name(self, name):
@@ -114,24 +119,39 @@ class Fork:
 
     @property
     def success(self):
-        return self.success
+        return self._success
 
     @success.setter
     def success(self, success):
-        if self._success == 'Unsuccessful':
-            self._success = False
-        elif self._success == 'Successful':
-            self._success = True
+        if success.lower() == 'unsuccessful' or success.lower() == 'successful':
+            self._success = success.lower()
+        elif success == 'NA':
+            self._success = 'NA'
         else:
-            raise ForkException("Fork Success field isn't 'Successful' or 'Unsuccessful'")
+            self._success = None
 
     @property
     def goal(self):
-        return self.goal
+        return self._goal
 
     @goal.setter
     def goal(self, goal):
-        self._goal = goal
+        if goal.lower() == 'none':
+            self._goal = None
+        else:
+            self._goal = goal
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__dict__ == other.__dict__
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __str__(self):
+        return "%s\t%s\t%s\t%s\t%s" % (self.index, self.order, self.name, self.goal, self.success)
 
 
 
@@ -144,8 +164,9 @@ class CodedEvent:
             'Time',
             'Transcription',
             'Foraging',
-            'Start', 'End', 'Ongoing', 'Code1', 'Code2', 'Code3',
-            'Forks',
+            'Start', 'End', 'Ongoing',
+            'Code1', 'Code2', 'Code3',
+            'Number of forks',
             'Fork Description',
             'Retrospective fork',
             'Retrospective fork agreement',
@@ -154,38 +175,20 @@ class CodedEvent:
             'Fork to Goal',
             'Foraging Success',
             'LearningDoing',
-            ]
-        self.keys_to_keep = [
-            'Index',
-            'Time',
-            'Foraging',
-            'Start',
-            'End',
-            'Ongoing',
-            'Forks',
-            'Fork Names',
-            'LearningDoing',
-            'Fork to Goal',
-            'Foraging Success'
-            ]
+        ]
         line_data = line.split('\t')
 
-        self.record = None
+        self.record = OrderedDict()
         if self._is_coded_row(line_data):
             self.valid = True
 
             initial_record = OrderedDict(zip(fields, line_data))
 
-            self.record = self._remove_unused_keys(initial_record)
-
             try:
-                self.record['Index'] = int(self.record['Index'])
-                self.record['Time'] = VideoTime.convert_to_timestamp(self.record['Time'])
-                self.record['Foraging'] = self._convert_yesno_to_boolean(self.record, 'Foraging')
-                self.record['Forks'] = self._unpack_fork_attributes(self.record)
-                self.record['LearningDoing'] = self.record['LearningDoing'].strip()
-
-
+                self.record['Index'] = int(initial_record['Index'])
+                self.record['Time'] = VideoTime.convert_to_timestamp(initial_record['Time'])
+                self.record['Foraging'] = self._convert_yesno_to_boolean(initial_record, 'Foraging')
+                self.record['Forks'] = self._unpack_fork_attributes(initial_record)
             except (KeyError, IndexError), e:
                 print "Key or Index Error at index %d: %s" % (self.record['Index'], str(e))
                 print self.record
@@ -194,16 +197,22 @@ class CodedEvent:
             self.record = None
             self.valid = False
 
-    def _remove_unused_keys(self, initial_record):
-        filtered_record = OrderedDict()
+        self.record
 
-        for k in self.keys_to_keep:
-            try:
-                filtered_record[k] = initial_record[k]
-            except KeyError:
-                filtered_record[k] = ''
+    def _unpack_fork_attributes(self, record):
+        """Associate fork data with a fork in the segment.
+        The attributes for a fork are the Fork Type (ex: Verified), Success, and the Goal."""
 
-        return filtered_record
+        fork = []
+
+        fork_names = [ r.strip() for r in record['Fork Names'].split(',') ]
+        fork_goals = [ r.strip() for r in record['Fork to Goal'].split(',') ]
+        fork_success = [ r.strip() for r in record['Foraging Success'].split(',') ]
+
+        for i in range(0, len(fork_names)):
+            fork.append(Fork(record['Index'], i + 1, fork_names[i], fork_goals[i], fork_success[i]))
+
+        return fork
 
     def _convert_yesno_to_boolean(self, record, key):
         if record[key].lower() == 'y' or record[key] == '1':
@@ -219,23 +228,6 @@ class CodedEvent:
             return False
         else:
             return True
-
-    def _unpack_fork_attributes(self, record):
-        """Associate fork data with a fork in thie segment.
-        The attributes for a fork are the Fork Type (ex: Verified), Success, and the Goal."""
-
-        fork = []
-        if int(record['Forks']) > 0:
-
-            fork_names = [ r.strip() for r in record['Fork Names'].split(',') ]
-            fork_goals = [ r.strip() for r in record['Fork to Goal'].split(',') ]
-            fork_success = [ r.strip() for r in record['Foraging Success'].split(',') ]
-
-            for i in range(0, len(fork_names)):
-                fork.append(Fork(record['Index'], i + 1, fork_names[i], fork_goals[i], fork_success[i]))
-
-        return fork
-
 
     @property
     def valid(self):
@@ -256,14 +248,29 @@ class CodedEvent:
     def tab(self):
         r = self.record
         r['Time'] = "00:%s.%03d" % (str(r['Time'].strftime("%M:%S")), r['Time'].microsecond/1000)
-        return ('\t'.join(str(v) for v in r.values()))
+
+        forks_serialized = '['
+
+        for f in r['Forks']:
+            forks_serialized += str(f) + ", "
+        if len(r['Forks']) > 0:
+            forks_serialized = forks_serialized[:-2]
+
+        forks_serialized += ']'
+        r['Forks'] = forks_serialized
+
+        return '\t'.join(str(v) for v in r.values())
 
 
 class Feature:
     def __init__(self, line):
         fields = ['Participant',
             'Fork',
+            'Order',
             'Retro Time',
+            'Start Time',
+            'End Time',
+            'Removed',
             'Fork Success',
             'Position',
             'Proximity',
@@ -287,24 +294,32 @@ class Feature:
             'Unknown',
             'Patch']
         line_data = line.rstrip('\n').split('\t', len(fields))
-        self.record = OrderedDict(zip(fields, line_data))
+        initial_record = OrderedDict(zip(fields, line_data))
+        self.record = OrderedDict()
 
-        try:
-            # Round off overlapping forks (ex: 11.1 rounds to 11)
-            self.record['Fork'] = int(float(self.record['Fork']))
+        if initial_record['Removed'] == 'n':
+            try:
+                self.record['Fork'] = int(initial_record['Fork'])
+                self.record['Order'] = int(initial_record['Order'])
+                self.record['Start'] = VideoTime.convert_to_timestamp(initial_record['Start Time'])
+                self.record['End'] = VideoTime.convert_to_timestamp(initial_record['End Time'])
+                self.record['FeatureType'] = self._copy_feature_types(fields, line_data)
+                self.record['Patch'] = initial_record['Patch']
+            except ValueError, e:
+                print "ValueError at index %d: %s" % (self.record['Fork'], str(e))
+                self.record['error'] = True
+        else:
+            raise ForkException("Fork has been removed: skipping this object.")
 
-            features_list = self._copy_feature_types(fields, line_data)
-            self.record['FeatureType'] = [k for k, v in features_list.items() if v == 'y']
-
-        except ValueError, e:
-            print "ValueError at index %d: %s" % (self.record['CommandID'], str(e))
-            self.record['error'] = True
+    def _delete_unused_keys(self, record):
+        del record['Fork Success'] # This field is not accurate to the spreadsheet.
+        return record
 
     def _copy_feature_types(self, fields, line_data):
-        """This is a cheating method so I can save on program text size."""
-        f = fields[4:-1]
-        l = line_data[4:-1]
-        return OrderedDict(zip(f, l))
+        """Create an OrderedDict from the fields that correspond to the feature types."""
+        f = fields[fields.index('Position'):-1]
+        l = line_data[fields.index('Position'):-1]
+        return [k for k, v in OrderedDict(zip(f, l)).items() if v == 'y']
 
     def _strip_quotes(self, field):
         return field.rstrip('"').lstrip('"')
@@ -327,11 +342,19 @@ class Feature:
     def __str__(self):
         return ('\t'.join(str(v) for v in self.record.values()))
 
+    def _time_to_str(self, timedata):
+        return "00:%s.%03d" % (str(timedata.strftime("%M:%S")), timedata.microsecond/1000)
+
     def tab(self):
         # Don't output the Line of Code. Also, strip today's date from the timestamp.
         r = self.record
-        r['Time'] = "00:%s.%03d" % (str(r['Time'].strftime("%M:%S")), r['Time'].microsecond/1000)
-        return ('\t'.join(str(v) for v in r.values()[0:-1]))
+        r['Start'] = self._time_to_str(r['Start'])
+        r['End'] = self._time_to_str(r['End'])
+
+        # Flatten the Feature Types into the list.
+        values_list = [v for k, v in r.iteritems() if k != 'FeatureType'] + self.record['FeatureType']
+
+        return ('\t'.join(str(v) for v in values_list))
 
 class DataLoader:
     DIR = os.path.join("..", "timeline_forks_data", "data")
@@ -353,8 +376,11 @@ class DataLoader:
 
             for line in f:
                 if DataLoader.line_matches_participant(line, p):
-                    c = Feature(line)
-                    command_list.append(c)
+                    try:
+                        c = Feature(line)
+                        command_list.append(c)
+                    except ForkException:
+                        pass
         return command_list
 
     @staticmethod
