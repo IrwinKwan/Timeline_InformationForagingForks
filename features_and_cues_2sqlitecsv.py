@@ -99,7 +99,6 @@ class Feature:
             raise CodeError("There's a problem with coding %s not being Y or N for index %s at %s."
                 % (key, record['Index'], str(record['Time'])))
 
-    def
 
     def _split_feature_types(self, feature_string):
 
