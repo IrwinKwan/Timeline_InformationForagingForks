@@ -44,54 +44,10 @@ from collections import OrderedDict
 from events import CodeError, DataLoader
 
 
-class Square:
-    def __init__(self, svg_timeline, event):
-
+class ForagingSegment:
+    def __init__(self, svg_timeline, event, section=None):
         self.svg_timeline = svg_timeline
         self.foraging = event['Foraging']
-        self.index = event['Index']
-        self.forks = event['Forks']
-
-    def _success_fill(self):
-        successful = self.forks[0].success
-
-        if successful == 'NA':
-            success_fill = "gold"
-        elif successful == 'successful':
-            success_fill = "palegreen"
-        elif successful == 'unsuccessful':
-            success_fill = "orangered"
-        else:
-            success_fill = "white"
-
-        return success_fill
-
-    def _fork_text(self):
-        fork_text = ''
-
-        try:
-            fork_type = self.forks[0].name
-
-            # Since we can't really plot two forks at the same spot on the graph, plot the first one only.
-            if fork_type == "Verified":
-                fork_text = 'v'
-                style = self.svg_timeline.g(style='text-decoration:underline; font-weight:bold')
-            elif fork_type == "Undetected":
-                fork_text = 'u'
-            elif fork_type == "False":
-                fork_text = '_'
-            elif fork_type == "No":
-                fork_text = ''
-            elif fork_type == "Unverified":
-                fork_text = "~v"
-            elif fork_type == "No Data":
-                fork_text = ''
-            elif fork_type == "ERROR":
-                fork_text = '!'
-        except IndexError:
-            fork_type = ''
-
-        return fork_text
 
     def _draw_text(self, xpos):
         size = "14"
@@ -129,74 +85,172 @@ class Square:
             opacity=opacity,
             stroke_width="0"))
 
+
+class ForkOutcomeSegment(object):
+    def __init__(self, svg_timeline, event, section=None):
+        self.svg_timeline = svg_timeline
+        self.index = event['Index']
+        self.forks = event['Forks']
+
+        self.lane = 0
+        self.total = len(self.forks)
+
+    def _fork_text(self, fork):
+        fork_text = ''
+
+        try:
+            fork_type = fork.name
+
+            # Since we can't really plot two forks at the same spot on the graph, plot the first one only.
+            if fork_type == "Verified":
+                fork_text = 'v'
+                style = self.svg_timeline.g(style='text-decoration:underline; font-weight:bold')
+            elif fork_type == "Undetected":
+                fork_text = 'u'
+            elif fork_type == "False":
+                fork_text = '_'
+            elif fork_type == "No":
+                fork_text = ''
+            elif fork_type == "Unverified":
+                fork_text = "~v"
+            elif fork_type == "No Data":
+                fork_text = ''
+            elif fork_type == "ERROR":
+                fork_text = '!'
+            elif fork_type == "Removed":
+                fork_text = ''
+        except IndexError:
+            fork_type = ''
+
+        return fork_text
+
+    def _draw_text(self, xpos, fork):
+        style = None
+        h = 12
+        size = int(14 - (2 * self.total))
+        x = Timeline.SQUARE_WIDTH/self.total
+
+        text = self.svg_timeline.text(
+            self._fork_text(fork),
+            insert=(xpos + x/2 + Timeline.X_OFFSET, Timeline.CHART_HEIGHT - h + Timeline.Y_OFFSET),
+            font_family="sans-serif",
+            font_size=str(size),
+            text_anchor="middle",
+            dy="5")
+
+        if style:
+            style.add(text)
+            self.svg_timeline.add(style)
+        else:
+            self.svg_timeline.add(text)
+
+    def _success_fill(self, fork):
+        successful = fork.success
+        success_fill = "white"
+
+        if fork.name != 'Removed':
+            if successful == 'NA':
+                success_fill = "gold"
+            elif successful == 'successful':
+                success_fill = "palegreen"
+            elif successful == 'unsuccessful':
+                success_fill = "orangered"
+            else:
+                success_fill = "white"
+
+        return success_fill
+
+    def _draw_square(self, xpos, fork):
+
+        h = EventLine.HEIGHT * 2
+
         # Successful/Not Successful Background
         self.svg_timeline.add(self.svg_timeline.rect(
-            insert=(xpos + Timeline.X_OFFSET, Timeline.CHART_HEIGHT - EventLine.HEIGHT * 2 + Timeline.Y_OFFSET),
-            size=(Timeline.SQUARE_WIDTH, EventLine.HEIGHT * 2),
-            fill=self._success_fill(),
+            insert=(xpos + Timeline.X_OFFSET, Timeline.CHART_HEIGHT - h + Timeline.Y_OFFSET),
+            size=(Timeline.SQUARE_WIDTH * 1.0/self.total, h),
+            fill=self._success_fill(fork),
             opacity=1.0,
             stroke_width="0"))
 
-        # Fork Text
-        self._draw_text(xpos)
+    def draw(self, xpos):
+        """Draws the square according to its properties"""
 
+        for fork in self.forks:
+            self._draw_square(xpos, fork)
+            self._draw_text(xpos, fork)
+            xpos += Timeline.SQUARE_WIDTH/2
 
 
 class CommandTooSoonException(Exception):
     pass
 
 
-class ForkLine:
+class ForkFeatureType:
 
     HEIGHT = 10
 
     COLOR = OrderedDict()
-    COLOR['Position'] = ('maroon', 0, 1)
-    COLOR['Proximity'] = ('indigo', 30, 2)
-    COLOR['Familiarity'] = ('yellow', 60, 3)
-    COLOR['JEdit Source'] = ('magenta', 60, 4)
-    COLOR['Method arguments/return type'] = ('red', 70, 5)
-    COLOR['Size of code'] = ('orange', 140, 6)
-    COLOR['Domain Text'] = ('green', 140, 7)
-    COLOR['GUI Text'] = ('steelblue', 140, 8)
-    COLOR['Contrast'] = ('red', 140, 9)
-    COLOR['Synonyms'] = ('pink', 140, 10)
-    COLOR['Antonyms'] = ('green', 140, 11)
-    COLOR['Level of Abstraction'] = ('blue', 180, 12)
-    COLOR['Comments'] = ('deeppink', 180, 13)
-    COLOR['File Type'] = ('darkgreen', 200, 14)
-    COLOR['Hardcoded Numbers'] = ('olive', 210, 15)
-    COLOR['Values of Variables'] = ('darkolivegreen', 210, 16)
-    COLOR['Examples'] = ('olivedrab', 190, 17)
-    COLOR['Exception'] = ('greenyellow', 220, 18)
-    COLOR['External Doc'] = ('slateblue', 140, 19)
-    COLOR['Unknown'] = ('steelblue', 240, 20)
+
+    # Each tuple represents the color, the starting 'top' position, and the lane.
+    COLOR['Position'] = ('maroon', 1)
+    COLOR['Proximity'] = ('indigo', 2)
+    COLOR['Familiarity'] = ('yellow', 3)
+    COLOR['JEdit Source'] = ('magenta', 4)
+    COLOR['Method arguments/return type'] = ('red', 5)
+    COLOR['Size of code'] = ('orange', 6)
+    COLOR['Domain Text'] = ('green', 7)
+    COLOR['GUI Text'] = ('steelblue', 8)
+    COLOR['Contrast'] = ('red', 9)
+    COLOR['Synonyms'] = ('pink', 10)
+    COLOR['Antonyms'] = ('green', 11)
+    COLOR['Level of Abstraction'] = ('blue', 12)
+    COLOR['Comments'] = ('deeppink', 13)
+    COLOR['File Type'] = ('darkgreen', 14)
+    COLOR['Hardcoded Numbers'] = ('olive', 15)
+    COLOR['Values of Variables'] = ('darkolivegreen', 16)
+    COLOR['Examples'] = ('olivedrab', 17)
+    COLOR['Exception'] = ('greenyellow', 18)
+    COLOR['External Doc'] = ('slateblue', 19)
+    COLOR['Unknown'] = ('darkslategrey', 20)
 
     # COLOR['default'] = ('darkslategrey', 250, 21)
 
-    def __init__(self, svg_timeline, event, start):
+    def __init__(self, svg_timeline, events, start):
         self.svg_timeline = svg_timeline
-        self.event = event
+        self.events = events
+        self.num_events = len(events)
         self.start_time = start
 
-    def _draw(self, point, xpos):
-        # self.svg_timeline.add(self.svg_timeline.line(
-        #       start=(xpos + Timeline.X_OFFSET, top + Timeline.Y_OFFSET),
-        #       end=(xpos + Timeline.X_OFFSET, Timeline.HEIGHT + Timeline.Y_OFFSET)).
-        #       stroke(color=color, width=1, opacity=0.9))
+    def _draw(self, fork, point, xpos):
+        """Draw a line between two points horizontally on the lane."""
 
-        width = 30
+        segment_width = 30
+        fractional_width = int(float(segment_width)/self.num_events)
+        start_offset = fractional_width * (fork['Order'] - 1)
         color = point[0]
-        top = point[1]
-        lane = point[2]
+        lane = point[1]
+
+        print (fork['Fork'], fork['Order'], color)
+        print start_offset
+
+        x_baseline = Timeline.X_OFFSET + xpos - segment_width
+
+        start = (x_baseline + start_offset,
+            ((lane - 1) * EventLine.HEIGHT) + Timeline.Y_OFFSET + EventLine.HEIGHT/2)
+        end = (x_baseline + start_offset + fractional_width,
+            ((lane - 1) * EventLine.HEIGHT) + Timeline.Y_OFFSET + EventLine.HEIGHT/2)
+
         self.svg_timeline.add(self.svg_timeline.line(
-            start=(xpos - width/2 + Timeline.X_OFFSET, ((lane - 1) * EventLine.HEIGHT) + Timeline.Y_OFFSET),
-            end=(xpos - width/2 + Timeline.X_OFFSET, ((lane - 1) * EventLine.HEIGHT) + EventLine.HEIGHT + Timeline.Y_OFFSET)).
-            stroke(color=color, width=width, opacity=0.9))
+            start=start, end=end).
+            stroke(color=color, width=EventLine.HEIGHT, opacity=0.9))
+
 
     def draw(self):
-        xpos = Timeline.calculate_x_position(self.start_time, self.event['Time'])
-        self._draw(self.COLOR[self.event['type']], xpos)
+        xpos = Timeline.calculate_x_position(self.start_time, self.events[0]['Time'])
+
+        for fork in self.events:
+            for ft in fork['FeatureType']:
+                self._draw(fork, self.COLOR[ft], xpos)
 
 
 class EventLine:
@@ -708,7 +762,7 @@ class FeatureTypesChart(object):
     @staticmethod
     def draw_legend(legend):
         startpos = Timeline.X_OFFSET - 2
-        for key, value in ForkLine.COLOR.items():
+        for key, value in ForkFeatureType.COLOR.items():
             legend.add(svgwrite.text.TSpan(key.replace("_", " ").capitalize(), insert=None, fill=value[0],
                 x=[startpos], dy=[10]))
 
@@ -927,15 +981,15 @@ class Timeline:
         decorations.draw_legend(legend_type)
 
     def _draw_coded_event(self, event, xpos):
-        square = Square(self.svg_timeline, event)
+        square = ForagingSegment(self.svg_timeline, event)
         square.draw(xpos)
 
-    def _draw_fork_event(self, event, xpos):
-        line = ForkLine(self.svg_timeline, event, self.start_time)
-        line.draw()
+        outcome = ForkOutcomeSegment(self.svg_timeline, event)
+        outcome.draw(xpos)
 
     def _draw_coded_events(self):
         xpos = 0
+
         for event in self.coded_events:
             self._draw_coded_event(event, xpos)
             xpos += Timeline.SQUARE_WIDTH
@@ -968,28 +1022,37 @@ class Timeline:
 
         # Draw everything in the queue
 
-    def _draw_fork_events(self):
+    def _draw_featuretype_events(self):
         event_queue = {}
-        for fork_event in self.feature_type_matrix:
 
-            event = fork_event
+        for i in range(0, len(self.feature_type_matrix)):
+            event = self.feature_type_matrix[i]
+            events = []
+            events.append(event)
 
             try:
-                event['Time'] = self._lookup_fork_time(fork_event["Fork"])
+                event['Time'] = self._lookup_fork_time(event["Fork"])
                 xpos = Timeline.calculate_x_position(self.start_time, event['Time'])
-                if xpos in event_queue:
-                    self._draw_overlap(xpos)
-                else:
-                    event_queue[xpos] = event
 
-                # Expand each feature type into a full record.
-                # P.S. This is a terrible way to do things.
-                for ft in event['FeatureType']:
-                    single_feature_type = event
-                    single_feature_type['type'] = ft
-                    self._draw_fork_event(single_feature_type, xpos)
+                if event['Order'] == 1:
+                    next = self.feature_type_matrix[i + 1]
+                    while event['Fork'] == next['Fork'] \
+                        and event['Order'] < next['Order']:
+                        events.append(next)
+                        i += 1
+                        next = self.feature_type_matrix[i + 1]
+
+                    self._draw_featuretype_event(events, xpos)
+
             except CommandTooSoonException:
+                print "Command Too Soon!"
                 pass
+            except IndexError:
+                pass
+
+    def _draw_featuretype_event(self, events, xpos):
+        line = ForkFeatureType(self.svg_timeline, events, self.start_time)
+        line.draw()
 
     def _draw_patches(self):
         lane = 0
@@ -1006,7 +1069,6 @@ class Timeline:
 
     def _draw_methods(self):
         start_event = None
-        #xpos = 0
         
         for event in self.commands:
             if 'error' not in event:
@@ -1019,8 +1081,6 @@ class Timeline:
                     if not start_event.same_method(event):
                         self.visited_methods = start_event.draw(event)
                         start_event = MethodBar(self.svg_timeline, event, self.start_time, Timeline.CHART_AND_PATCH_HEIGHT, self.visited_methods)
-                    
-            #xpos += Timeline.SQUARE_WIDTH
 
         # Draw the final event
         if 'error' not in event:
@@ -1034,12 +1094,11 @@ class Timeline:
             print fork_index
             raise e
 
-
     def draw(self):
         """Converts the textual commands_list to a graphical timeline view in SVG."""
         self._draw_coded_events()
         #self._draw_command_events()
-        self._draw_fork_events()
+        self._draw_featuretype_events()
         self._draw_patches()
         self._draw_methods()
         self._draw_timeline_decorations("FeatureType")
